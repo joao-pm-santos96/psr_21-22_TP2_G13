@@ -20,7 +20,7 @@ TODO
 """
 FUNCTIONS DEFINITIONS
 """
-def onTrackbar(value, limits, channel, is_max, trackbar_name, window_name):
+def onTrackbar(value, limits, channel, trackbar_name, window_name):
     """Callback for trackbar value changes. This callback limits the maximum (minimum)
     to allways be greater (lower) than the minimum (maximum).
 
@@ -32,14 +32,15 @@ def onTrackbar(value, limits, channel, is_max, trackbar_name, window_name):
         trackbar_name (str): Name of the trackbar.
         window_name (str): Name of the window.
     """    
-    levels = ['min', 'max']
+    is_max = 'max' in trackbar_name
+    level = 'max' if is_max else 'min'
 
-    if is_max and (value < limits[channel][levels[not is_max]]):
-        cv2.setTrackbarPos(trackbar_name, window_name, limits[channel][levels[not is_max]])
-    elif (not is_max) and (value > limits[channel][levels[not is_max]]):
-        cv2.setTrackbarPos(trackbar_name, window_name, limits[channel][levels[not is_max]])
+    if is_max and (value < limits[channel]['min']):
+        cv2.setTrackbarPos(trackbar_name, window_name, limits[channel]['min'])
+    elif (not is_max) and (value > limits[channel]['max']):
+        cv2.setTrackbarPos(trackbar_name, window_name, limits[channel]['max'])
     else:
-        limits[channel][levels[is_max]] = value
+        limits[channel][level] = value
         
 
 def save(limits, file_name = 'limits.json'):
@@ -84,8 +85,8 @@ if __name__ == '__main__':
 
     for channel in 'bgr':
         minc, maxc = f"{channel}_min", f"{channel}_max"
-        cv2.createTrackbar(trackbar_names[minc], window_name,   0, 255, partial(onTrackbar, limits=limits, channel=channel, is_max = False, trackbar_name=trackbar_names[minc], window_name=window_name)) 
-        cv2.createTrackbar(trackbar_names[maxc], window_name, 255, 255, partial(onTrackbar, limits=limits, channel=channel, is_max = True , trackbar_name=trackbar_names[maxc], window_name=window_name)) 
+        cv2.createTrackbar(trackbar_names[minc], window_name,   0, 255, partial(onTrackbar, limits=limits, channel=channel, trackbar_name=trackbar_names[minc], window_name=window_name)) 
+        cv2.createTrackbar(trackbar_names[maxc], window_name, 255, 255, partial(onTrackbar, limits=limits, channel=channel, trackbar_name=trackbar_names[maxc], window_name=window_name)) 
        
 
     # Loop
