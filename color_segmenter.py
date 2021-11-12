@@ -65,27 +65,28 @@ if __name__ == '__main__':
     frame = None
 
     # Init limits dictionary
-    limits = {'limits': {'B': {'max': 255, 'min': 0},
-    'G': {'max': 255, 'min': 0},
-    'R': {'max': 255, 'min': 0}}}
+    limits = {'b': {'max': 255, 'min': 0},
+    'g': {'max': 255, 'min': 0},
+    'r': {'max': 255, 'min': 0}}
 
     # Create window
     cv2.namedWindow(window_name)
 
     # Create trackbars
-    trackbar_names = {'b_min': 'Blue min',
-    'b_max': 'Blue max',
-    'g_min': 'Green min',
-    'g_max': 'Green max',
-    'r_min': 'Red min',
-    'r_max': 'Red max'}
+    trackbar_names = {
+        'b_min': 'Blue min',
+        'b_max': 'Blue max',
+        'g_min': 'Green min',
+        'g_max': 'Green max',
+        'r_min': 'Red min',
+        'r_max': 'Red max'
+    }
 
-    cv2.createTrackbar(trackbar_names['b_min'], window_name,   0, 255, partial(onTrackbar, limits=limits['limits'], channel='B', is_max = False, trackbar_name=trackbar_names['b_min'], window_name=window_name)) 
-    cv2.createTrackbar(trackbar_names['b_max'], window_name, 255, 255, partial(onTrackbar, limits=limits['limits'], channel='B', is_max = True , trackbar_name=trackbar_names['b_max'], window_name=window_name)) 
-    cv2.createTrackbar(trackbar_names['g_min'], window_name,   0, 255, partial(onTrackbar, limits=limits['limits'], channel='G', is_max = False, trackbar_name=trackbar_names['g_min'], window_name=window_name)) 
-    cv2.createTrackbar(trackbar_names['g_max'], window_name, 255, 255, partial(onTrackbar, limits=limits['limits'], channel='G', is_max = True , trackbar_name=trackbar_names['g_max'], window_name=window_name)) 
-    cv2.createTrackbar(trackbar_names['r_min'], window_name,   0, 255, partial(onTrackbar, limits=limits['limits'], channel='R', is_max = False, trackbar_name=trackbar_names['r_min'], window_name=window_name)) 
-    cv2.createTrackbar(trackbar_names['r_max'], window_name, 255, 255, partial(onTrackbar, limits=limits['limits'], channel='R', is_max = True , trackbar_name=trackbar_names['r_max'], window_name=window_name)) 
+    for channel in 'bgr':
+        minc, maxc = f"{channel}_min", f"{channel}_max"
+        cv2.createTrackbar(trackbar_names[minc], window_name,   0, 255, partial(onTrackbar, limits=limits, channel=channel, is_max = False, trackbar_name=trackbar_names[minc], window_name=window_name)) 
+        cv2.createTrackbar(trackbar_names[maxc], window_name, 255, 255, partial(onTrackbar, limits=limits, channel=channel, is_max = True , trackbar_name=trackbar_names[maxc], window_name=window_name)) 
+       
 
     # Loop
     while True:
@@ -98,8 +99,8 @@ if __name__ == '__main__':
             continue
 
         # Threshold
-        lower = np.array([limits['limits']['B']['min'], limits['limits']['G']['min'], limits['limits']['R']['min']])
-        upper = np.array([limits['limits']['B']['max'], limits['limits']['G']['max'], limits['limits']['R']['max']])
+        lower = np.array([limits[color]['min'] for color in 'bgr'])
+        upper = np.array([limits[color]['max'] for color in 'bgr'])
 
         mask = cv2.inRange(frame, lower, upper)
         frame_masked = cv2.bitwise_and(frame, frame, mask=mask)
