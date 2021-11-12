@@ -10,7 +10,9 @@ import argparse
 import json
 import cv2
 import numpy as np
+
 from colorama import Fore, Back, Style
+from datetime import datetime
 
 """
 TODO
@@ -98,13 +100,10 @@ def main():
             if last_point:
                 cv2.line(canvas, last_point, centroid, pencil['color'], pencil['size'])
 
+            # Save last point
             last_point = centroid
 
-
-
-            
             cv2.imshow(mask_window, mask_max)
-
 
         # Show 
         cv2.imshow(video_window, frame)
@@ -140,8 +139,10 @@ def main():
             canvas.fill(255)
             print('Cleared canvas')
         
-        elif key == ord('-'):
-            print('w')
+        elif key == ord('w'):
+            file_name = 'drawing_' + datetime.now().strftime('%a_%b_%m_%H:%M:%S_%Y') + '.png'
+            cv2.imwrite(file_name, canvas)
+            print('Saved canvas to ' + file_name)
         
         elif key == ord('q'):
             break
