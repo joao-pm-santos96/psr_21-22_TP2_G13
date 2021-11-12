@@ -55,10 +55,7 @@ def save(limits, file_name = 'limits.json'):
     with open(file_name, 'w') as file_handle:
         json.dump(limits, file_handle)
 
-"""
-MAIN
-"""
-if __name__ == '__main__':
+def main():
 
     # Init frame and VideoCapture
     window_name = 'Video'
@@ -85,9 +82,8 @@ if __name__ == '__main__':
 
     for channel in 'bgr':
         minc, maxc = f"{channel}_min", f"{channel}_max"
-        cv2.createTrackbar(trackbar_names[minc], window_name,   0, 255, partial(onTrackbar, limits=limits['limits'], channel=channel, trackbar_name=trackbar_names[minc], window_name=window_name)) 
-        cv2.createTrackbar(trackbar_names[maxc], window_name, 255, 255, partial(onTrackbar, limits=limits['limits'], channel=channel, trackbar_name=trackbar_names[maxc], window_name=window_name)) 
-       
+        cv2.createTrackbar(trackbar_names[minc], window_name,   0, 255, partial(onTrackbar, limits=limits['limits'], channel=channel, trackbar_name=trackbar_names[minc], window_name=window_name))
+        cv2.createTrackbar(trackbar_names[maxc], window_name, 255, 255, partial(onTrackbar, limits=limits['limits'], channel=channel, trackbar_name=trackbar_names[maxc], window_name=window_name))       
 
     # Loop
     while True:
@@ -113,9 +109,15 @@ if __name__ == '__main__':
         if key == ord('w'):
             save(limits)
             break
-
         elif key == ord('q'):
             break
 
     # Finalize
     cap.release()
+
+
+"""
+MAIN
+"""
+if __name__ == '__main__':
+    main()

@@ -22,6 +22,13 @@ CLASS DEFINITIONS
 """
 FUNCTIONS DEFINITIONS
 """
+def drawCross(image, center, size = 20, color = (0,0,255), line_width = 2):
+    
+    cv2.line(image, (center[0] - size, center[1]), (center[0] + size, center[1]), color, line_width)
+    cv2.line(image, (center[0], center[1] - size), (center[0], center[1] + size), color, line_width)
+
+    return image
+
 def main():
 
     # Argparse stuff
@@ -36,11 +43,14 @@ def main():
         limits = json.load(f)
 
     # Get thresholds
-    lower = np.array([limits['limits']['B']['min'], limits['limits']['G']['min'], limits['limits']['R']['min']])
-    upper = np.array([limits['limits']['B']['max'], limits['limits']['G']['max'], limits['limits']['R']['max']])
+    lower = np.array([limits['limits'][color]['min'] for color in 'bgr'])
+    upper = np.array([limits['limits'][color]['max'] for color in 'bgr'])
 
     # Init frame and VideoCapture
-    window_name = 'Video'
+    video_window = 'Video'
+    canvas_window = 'Canvas'
+    mask_window = 'Mask'
+
     cap = cv2.VideoCapture(0)
     
     # Get initial frame and size
@@ -50,8 +60,8 @@ def main():
     white_board = np.ones(frame.shape, np.uint8)  
     white_board.fill(255)
 
-    # Misc
-    cross_size = 20
+    # Pencil start state
+    pencil = {'size': 10, 'color': (0, 0, 255)}
 
     while True:
 
@@ -60,7 +70,6 @@ def main():
 
         # Get mask
         mask = cv2.inRange(frame, lower, upper)
-        cv2.imshow('Mask', mask)
 
         # Get pointer
         components = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
@@ -78,10 +87,9 @@ def main():
             centroid = [int(centroids[index, 0]), int(centroids[index, 1])]
 
             # Draw cross
-            cv2.line(frame, (centroid[0] - cross_size, centroid[1]), (centroid[0] + cross_size, centroid[1]), (0, 0, 255), 2)
-            cv2.line(frame, (centroid[0], centroid[1] - cross_size), (centroid[0], centroid[1] + cross_size), (0, 0, 255), 2)
-
-            cv2.imshow('Mask 2', mask_max)
+            frame = drawCross(frame, centroid)
+            
+            cv2.imshow(mask_max, mask_max)
 
 
 
@@ -91,19 +99,33 @@ def main():
         key = cv2.waitKey(1)
 
         if key == ord('r'):
-            print('red')
+            pencil['color'] = (0, 0, 255)
+            print('Set pencil color to red')
+
         elif key == ord('g'):
-           print('green')
+            pencil['color'] = (0, 255, 0)
+            print('Set pencil color to green')
+        
         elif key == ord('b'):
-            print('blue')
+            pencil['color'] = (255, 0, 0)
+            print('Set pencil color to blue')
+        
         elif key == ord('+'):
-                print('+')
+            # TODO check max size
+            pencil['size'] += 1
+            print('Increased pencil size to ' + str(pencil['size']))
+        
         elif key == ord('-'):
-            print('-')
+            # TODO check min size
+            pencil['size'] -= 1
+            print('Decreased pencil size to ' + str(pencil['size']))
+        
         elif key == ord('c'):
-                print('c')
+            print('c')
+        
         elif key == ord('-'):
             print('w')
+        
         elif key == ord('q'):
             break
 
