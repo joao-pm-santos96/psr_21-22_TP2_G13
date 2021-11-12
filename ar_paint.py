@@ -10,6 +10,7 @@ import argparse
 import json
 import cv2
 import numpy as np
+from colorama import Fore, Back, Style
 
 """
 TODO
@@ -57,11 +58,12 @@ def main():
     _, frame = cap.read()
     
     # Crate white image
-    white_board = np.ones(frame.shape, np.uint8)  
-    white_board.fill(255)
+    canvas = np.ones(frame.shape, np.uint8)  
+    canvas.fill(255)
 
     # Pencil start state
     pencil = {'size': 10, 'color': (0, 0, 255)}
+    last_point = None
 
     while True:
 
@@ -81,47 +83,62 @@ def main():
 
         # Get max area mask
         if num_labels > 1:
+            
+            # Get index ignoring the first one
             index = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
 
+            # Get mask and centroid
             mask_max = (labels == index).astype('uint8') * 255
             centroid = [int(centroids[index, 0]), int(centroids[index, 1])]
 
             # Draw cross
             frame = drawCross(frame, centroid)
+
+            # Draw line
+            if last_point:
+                cv2.line(canvas, last_point, centroid, pencil['color'], pencil['size'])
+
+            last_point = centroid
+
+
+
             
-            cv2.imshow(mask_max, mask_max)
+            cv2.imshow(mask_window, mask_max)
 
 
-
-
-
-        cv2.imshow('Original', frame)
+        # Show 
+        cv2.imshow(video_window, frame)
+        cv2.imshow(canvas_window, canvas)
+        
+        
         key = cv2.waitKey(1)
 
         if key == ord('r'):
             pencil['color'] = (0, 0, 255)
-            print('Set pencil color to red')
+            print('Set pencil color to ' + Fore.RED + 'red' + Style.RESET_ALL)
 
         elif key == ord('g'):
             pencil['color'] = (0, 255, 0)
-            print('Set pencil color to green')
+            print('Set pencil color to ' + Fore.GREEN + 'green' + Style.RESET_ALL)
         
         elif key == ord('b'):
             pencil['color'] = (255, 0, 0)
-            print('Set pencil color to blue')
+            print('Set pencil color to ' + Fore.BLUE + 'blue' + Style.RESET_ALL)
         
         elif key == ord('+'):
-            # TODO check max size
             pencil['size'] += 1
             print('Increased pencil size to ' + str(pencil['size']))
         
         elif key == ord('-'):
-            # TODO check min size
-            pencil['size'] -= 1
-            print('Decreased pencil size to ' + str(pencil['size']))
-        
+            if pencil['size'] > 2:
+                pencil['size'] -= 1
+                print('Decreased pencil size to ' + str(pencil['size']))
+            else:
+                print('Can not decrease any further')
+
         elif key == ord('c'):
-            print('c')
+            canvas.fill(255)
+            print('Cleared canvas')
         
         elif key == ord('-'):
             print('w')
