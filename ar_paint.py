@@ -37,6 +37,7 @@ def main():
     # Argparse stuff
     parser = argparse.ArgumentParser(description='Augmented reality paint')
     parser.add_argument('-j', '--json', type=str, required=True, help='Full path to json file.')
+    parser.add_argument('-usp', '--use_shake_prevention', default=False, action='store_true', help='Use shake prevention functionality. Defaults fo False.')
 
     args = parser.parse_args()
 
@@ -67,6 +68,9 @@ def main():
     pencil = {'size': 10, 'color': (0, 0, 255)}
     last_point = None
 
+    # Misc
+    norm_threshold = 50
+
     while True:
 
         # Read frame
@@ -76,12 +80,7 @@ def main():
         mask = cv2.inRange(frame, lower, upper)
 
         # Get pointer
-        components = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
-
-        num_labels = components[0]
-        labels = components[1]
-        stats = components[2]
-        centroids = components[3]
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
 
         # Get max area mask
         if num_labels > 1:
@@ -91,13 +90,16 @@ def main():
 
             # Get mask and centroid
             mask_max = (labels == index).astype('uint8') * 255
-            centroid = [int(centroids[index, 0]), int(centroids[index, 1])]
+            centroid = centroids[index, :].astype(np.int64)
 
             # Draw cross
             frame = drawCross(frame, centroid)
 
+            # Compute norm between consecutive points
+            norm = (np.linalg.norm(last_point - centroid)) if (args.use_shake_prevention and last_point is not None) else 0
+
             # Draw line
-            if last_point:
+            if last_point is not None and norm < norm_threshold:
                 cv2.line(canvas, last_point, centroid, pencil['color'], pencil['size'])
 
             # Save last point
@@ -107,8 +109,7 @@ def main():
 
         # Show 
         cv2.imshow(video_window, frame)
-        cv2.imshow(canvas_window, canvas)
-        
+        cv2.imshow(canvas_window, canvas)        
         
         key = cv2.waitKey(1)
 
