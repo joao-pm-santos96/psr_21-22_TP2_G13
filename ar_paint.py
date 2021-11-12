@@ -98,7 +98,6 @@ def main():
             print('blue')
         elif key == ord('+'):
                 print('+')
-
         elif key == ord('-'):
             print('-')
         elif key == ord('c'):

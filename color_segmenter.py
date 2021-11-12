@@ -66,9 +66,9 @@ if __name__ == '__main__':
     frame = None
 
     # Init limits dictionary
-    limits = {'b': {'max': 255, 'min': 0},
+    limits = {'limits':{'b': {'max': 255, 'min': 0},
     'g': {'max': 255, 'min': 0},
-    'r': {'max': 255, 'min': 0}}
+    'r': {'max': 255, 'min': 0}}}
 
     # Create window
     cv2.namedWindow(window_name)
@@ -85,8 +85,8 @@ if __name__ == '__main__':
 
     for channel in 'bgr':
         minc, maxc = f"{channel}_min", f"{channel}_max"
-        cv2.createTrackbar(trackbar_names[minc], window_name,   0, 255, partial(onTrackbar, limits=limits, channel=channel, trackbar_name=trackbar_names[minc], window_name=window_name)) 
-        cv2.createTrackbar(trackbar_names[maxc], window_name, 255, 255, partial(onTrackbar, limits=limits, channel=channel, trackbar_name=trackbar_names[maxc], window_name=window_name)) 
+        cv2.createTrackbar(trackbar_names[minc], window_name,   0, 255, partial(onTrackbar, limits=limits['limits'], channel=channel, trackbar_name=trackbar_names[minc], window_name=window_name)) 
+        cv2.createTrackbar(trackbar_names[maxc], window_name, 255, 255, partial(onTrackbar, limits=limits['limits'], channel=channel, trackbar_name=trackbar_names[maxc], window_name=window_name)) 
        
 
     # Loop
@@ -100,8 +100,8 @@ if __name__ == '__main__':
             continue
 
         # Threshold
-        lower = np.array([limits[color]['min'] for color in 'bgr'])
-        upper = np.array([limits[color]['max'] for color in 'bgr'])
+        lower = np.array([limits['limits'][color]['min'] for color in 'bgr'])
+        upper = np.array([limits['limits'][color]['max'] for color in 'bgr'])
 
         mask = cv2.inRange(frame, lower, upper)
         frame_masked = cv2.bitwise_and(frame, frame, mask=mask)
