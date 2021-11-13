@@ -43,6 +43,11 @@ def drawOnImage(image, drawing):
 
     return cv2.add(background, foreground)
 
+def onMouseClick(event,x,y,flags,param):
+
+    if event == cv2.EVENT_LBUTTONDBLCLK:
+        pass
+
 def main():
 
     # Argparse stuff
@@ -65,6 +70,11 @@ def main():
     video_window = 'Video'
     canvas_window = 'Canvas'
     mask_window = 'Mask'
+
+    cv2.namedWindow(video_window)
+    cv2.namedWindow(mask_window)
+    cv2.namedWindow(canvas_window)
+    cv2.setMouseCallback(canvas_window, onMouseClick)
 
     cap = cv2.VideoCapture(0)
     
@@ -131,7 +141,11 @@ def main():
         cv2.imshow(video_window, frame)
         cv2.imshow(canvas_window, drawing)
         
+        # Key controls
         key = cv2.waitKey(1)
+
+        # Check if drawing rectangle or circle
+        shape = chr(key) if (key in [ord('s'), ord('e')]) else None
 
         if key == ord('r'):
             pencil['color'] = (0, 0, 255, 255)
@@ -164,7 +178,7 @@ def main():
             file_name = 'drawing_' + datetime.now().strftime('%a_%b_%m_%H:%M:%S_%Y') + '.png'
             cv2.imwrite(file_name, drawing)
             print('Saved canvas to ' + file_name)
-        
+
         elif key == ord('q'):
             break
 
