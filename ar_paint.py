@@ -32,6 +32,17 @@ def drawCross(image, center, size = 20, color = (0,0,255), line_width = 2):
 
     return image
 
+def drawOnImage(image, drawing):
+
+    mask = drawing[:,:,3] # Use alpha channel as mask
+    mask_inv = cv2.bitwise_not(mask)
+
+    background = cv2.bitwise_and(image, image, mask=mask_inv)
+    foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
+    foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
+
+    return cv2.add(background, foreground)
+
 def main():
 
     # Argparse stuff
@@ -58,14 +69,19 @@ def main():
     cap = cv2.VideoCapture(0)
     
     # Get initial frame and size
-    _, frame = cap.read()
+    if cap.isOpened(): 
+        width  = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    else:
+        raise Exception('Could not open camera 0.')
     
     # Crate white image
-    canvas = np.ones(frame.shape, np.uint8)  
-    canvas.fill(255)
+    n_channels = 4
+    canvas = np.zeros((height, width, n_channels), np.uint8)
+    # canvas.fill(255)
 
     # Pencil start state
-    pencil = {'size': 10, 'color': (0, 0, 255)}
+    pencil = {'size': 10, 'color': (0, 0, 255, 255)}
     last_point = None
 
     # Misc
@@ -105,24 +121,28 @@ def main():
             # Save last point
             last_point = centroid
 
+            # TODO here?
             cv2.imshow(mask_window, mask_max)
+
+        # Combine frame with drawing
+        drawing = drawOnImage(frame, canvas)     
 
         # Show 
         cv2.imshow(video_window, frame)
-        cv2.imshow(canvas_window, canvas)        
+        cv2.imshow(canvas_window, drawing)
         
         key = cv2.waitKey(1)
 
         if key == ord('r'):
-            pencil['color'] = (0, 0, 255)
+            pencil['color'] = (0, 0, 255, 255)
             print('Set pencil color to ' + Fore.RED + 'red' + Style.RESET_ALL)
 
         elif key == ord('g'):
-            pencil['color'] = (0, 255, 0)
+            pencil['color'] = (0, 255, 0, 255)
             print('Set pencil color to ' + Fore.GREEN + 'green' + Style.RESET_ALL)
         
         elif key == ord('b'):
-            pencil['color'] = (255, 0, 0)
+            pencil['color'] = (255, 0, 0, 255)
             print('Set pencil color to ' + Fore.BLUE + 'blue' + Style.RESET_ALL)
         
         elif key == ord('+'):
@@ -137,12 +157,12 @@ def main():
                 print('Can not decrease any further')
 
         elif key == ord('c'):
-            canvas.fill(255)
+            canvas.fill(0)
             print('Cleared canvas')
         
         elif key == ord('w'):
             file_name = 'drawing_' + datetime.now().strftime('%a_%b_%m_%H:%M:%S_%Y') + '.png'
-            cv2.imwrite(file_name, canvas)
+            cv2.imwrite(file_name, drawing)
             print('Saved canvas to ' + file_name)
         
         elif key == ord('q'):
