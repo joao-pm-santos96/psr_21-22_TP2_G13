@@ -43,10 +43,48 @@ def drawOnImage(image, drawing):
 
     return cv2.add(background, foreground)
 
-def onMouseClick(event,x,y,flags,param):
+def distanceOf2Points(p1,p2):
+    
+    return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5
 
-    if event == cv2.EVENT_LBUTTONDBLCLK:
+
+def drawShape(image, pencil, centroid):
+    shape = pencil["shape"]
+
+    if shape == 's':
+        cv2.rectangle(image, pencil["last_point"], centroid, pencil['color'], pencil['size'])
+    elif shape == 'e': 
+        cv2.ellipse(image, pencil["last_point"], (abs(centroid[0]-pencil["last_point"][0]),abs(centroid[1]-pencil["last_point"][1]) ), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])
+
+
+class ImageHandler:
+    def __init__(self): # to avoid using global variables
         pass
+
+
+class MouseHandler:
+    def __init__(self, canvas, pencil):
+        self.canvas = canvas
+        self.pencil = pencil
+        self.drawing = False
+        self.last_point = None
+
+    def onMouseClick(self, event,x,y,flags,param):
+        print(event)
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.drawing = True
+            self.last_point = (x,y)
+
+
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if self.drawing:
+                cv2.line(self.canvas, self.last_point, (x,y), self.pencil['color'], self.pencil['size'])
+                self.last_point = (x,y)
+
+        elif event == cv2.EVENT_LBUTTONUP:
+            self.drawing = False
+            
+
 
 def main():
 
@@ -59,8 +97,13 @@ def main():
 
     # Read file
     # TODO check if file exists
-    with open(args.json) as f:
+    
+    try:
+        f = open(args.json)
         limits = json.load(f)
+    except:
+        print(f"Erro a ler o ficheiro {args.json}!")
+        exit(1)
 
     # Get thresholds
     lower = np.array([limits['limits'][color]['min'] for color in 'bgr'])
@@ -74,7 +117,6 @@ def main():
     cv2.namedWindow(video_window)
     cv2.namedWindow(mask_window)
     cv2.namedWindow(canvas_window)
-    cv2.setMouseCallback(canvas_window, onMouseClick)
 
     cap = cv2.VideoCapture(0)
     
@@ -85,17 +127,21 @@ def main():
     else:
         raise Exception('Could not open camera 0.')
     
-    # Crate white image
+    # Create white image
     n_channels = 4
     canvas = np.zeros((height, width, n_channels), np.uint8)
     # canvas.fill(255)
 
     # Pencil start state
-    pencil = {'size': 10, 'color': (0, 0, 255, 255)}
-    last_point = None
+    pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}
+    
 
+    mouse_handler = MouseHandler(canvas, pencil)
+
+    cv2.setMouseCallback(canvas_window, mouse_handler.onMouseClick)
     # Misc
     norm_threshold = 50
+
 
     while True:
 
@@ -116,22 +162,30 @@ def main():
 
             # Get mask and centroid
             mask_max = (labels == index).astype('uint8') * 255
-            centroid = centroids[index, :].astype(np.int64)
-
+            centroid = tuple(centroids[index, :].astype(np.int32))
             # Draw cross
-            frame = drawCross(frame, centroid)
 
+            if not mouse_handler.drawing:
+                frame = drawCross(frame, centroid, color=pencil['color'] )
+         
+            last_point = pencil["last_point"] # help legibility
+            #print(last_point, centroid)
             # Compute norm between consecutive points
-            norm = (np.linalg.norm(last_point - centroid)) if (args.use_shake_prevention and last_point is not None) else 0
+            norm = distanceOf2Points(last_point, centroid) if (args.use_shake_prevention and last_point is not None) else 0
 
             # Draw line
-            if last_point is not None and norm < norm_threshold:
-                cv2.line(canvas, last_point, centroid, pencil['color'], pencil['size'])
 
-            # Save last point
-            last_point = centroid
+            if pencil["shape"] == '.':
+                if last_point is not None and norm < norm_threshold and not mouse_handler.drawing:
+                    cv2.line(canvas, last_point, centroid, pencil['color'], pencil['size'])
 
-            # TODO here?
+                # Save last point
+                pencil["last_point"] = centroid
+            else:
+                
+                drawShape(frame, pencil, centroid)
+
+
             cv2.imshow(mask_window, mask_max)
 
         # Combine frame with drawing
@@ -145,9 +199,18 @@ def main():
         key = cv2.waitKey(1)
 
         # Check if drawing rectangle or circle
-        shape = chr(key) if (key in [ord('s'), ord('e')]) else None
+        shape = chr(key) if key in [ord('s'), ord('e')] else None
 
-        if key == ord('r'):
+        if shape and pencil["last_point"]:
+            if shape == pencil["shape"]:
+                drawShape(canvas, pencil, centroid)
+                pencil["shape"] = '.'
+                pencil["last_point"] = None
+            else:
+                pencil["shape"] = shape
+                pencil["last_point"] = centroid
+
+        elif key == ord('r'):
             pencil['color'] = (0, 0, 255, 255)
             print('Set pencil color to ' + Fore.RED + 'red' + Style.RESET_ALL)
 
