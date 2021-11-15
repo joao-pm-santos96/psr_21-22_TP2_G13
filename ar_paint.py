@@ -70,7 +70,7 @@ class MouseHandler:
         self.last_point = None
 
     def onMouseClick(self, event,x,y,flags,param):
-        print(event)
+        # print(event)
         if event == cv2.EVENT_LBUTTONDOWN:
             self.drawing = True
             self.last_point = (x,y)
@@ -92,6 +92,7 @@ def main():
     parser = argparse.ArgumentParser(description='Augmented reality paint')
     parser.add_argument('-j', '--json', type=str, required=True, help='Full path to json file.')
     parser.add_argument('-usp', '--use_shake_prevention', default=False, action='store_true', help='Use shake prevention functionality. Defaults fo False.')
+    parser.add_argument('-wb', '--whiteboard', default=False, action='store_true', help='Use a whiteboard to draw instead of camera video feed.')
 
     args = parser.parse_args()
 
@@ -130,18 +131,17 @@ def main():
     # Create white image
     n_channels = 4
     canvas = np.zeros((height, width, n_channels), np.uint8)
-    # canvas.fill(255)
+    if args.whiteboard:
+        canvas.fill(255)
 
     # Pencil start state
-    pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}
-    
+    pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}    
 
     mouse_handler = MouseHandler(canvas, pencil)
 
     cv2.setMouseCallback(canvas_window, mouse_handler.onMouseClick)
     # Misc
-    norm_threshold = 50
-
+    norm_threshold = 150
 
     while True:
 
@@ -169,12 +169,11 @@ def main():
                 frame = drawCross(frame, centroid, color=pencil['color'] )
          
             last_point = pencil["last_point"] # help legibility
-            #print(last_point, centroid)
+            
             # Compute norm between consecutive points
             norm = distanceOf2Points(last_point, centroid) if (args.use_shake_prevention and last_point is not None) else 0
 
             # Draw line
-
             if pencil["shape"] == '.':
                 if last_point is not None and norm < norm_threshold and not mouse_handler.drawing:
                     cv2.line(canvas, last_point, centroid, pencil['color'], pencil['size'])
@@ -189,11 +188,12 @@ def main():
             cv2.imshow(mask_window, mask_max)
 
         # Combine frame with drawing
-        drawing = drawOnImage(frame, canvas)     
+        if not args.whiteboard:
+            drawing = drawOnImage(frame, canvas)     
 
         # Show 
         cv2.imshow(video_window, frame)
-        cv2.imshow(canvas_window, drawing)
+        cv2.imshow(canvas_window, canvas if args.whiteboard else drawing)
         
         # Key controls
         key = cv2.waitKey(1)
@@ -239,7 +239,7 @@ def main():
         
         elif key == ord('w'):
             file_name = 'drawing_' + datetime.now().strftime('%a_%b_%m_%H:%M:%S_%Y') + '.png'
-            cv2.imwrite(file_name, drawing)
+            cv2.imwrite(file_name, canvas if args.whiteboard else drawing)
             print('Saved canvas to ' + file_name)
 
         elif key == ord('q'):
