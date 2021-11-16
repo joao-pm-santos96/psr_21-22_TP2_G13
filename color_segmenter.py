@@ -22,7 +22,7 @@ FUNCTIONS DEFINITIONS
 """
 def onTrackbar(value, limits, channel, trackbar_name, window_name):
     """Callback for trackbar value changes. This callback limits the maximum (minimum)
-    to allways be greater (lower) than the minimum (maximum).
+    to always be greater (lower) than the minimum (maximum).
 
     Args:
         value (int): Value set on the trackbar.
