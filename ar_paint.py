@@ -92,13 +92,41 @@ def main():
     parser = argparse.ArgumentParser(description='Augmented reality paint')
     parser.add_argument('-j', '--json', type=str, required=True, help='Full path to json file.')
     parser.add_argument('-usp', '--use_shake_prevention', default=False, action='store_true', help='Use shake prevention functionality. Defaults fo False.')
-    parser.add_argument('-wb', '--whiteboard', default=False, action='store_true', help='Use a whiteboard to draw instead of camera video feed.')
+    parser.add_argument('-cm', '--cameramode', default=False, action='store_true', help='Use a camera video instead feed a whiteboard to draw.')
+    parser.add_argument('-paint', '--paintmode', type=str, help='Use a whiteboard to draw instead of camera video feed.')
+    
 
     args = parser.parse_args()
 
     # Read file
     # TODO check if file exists
     
+    try:
+        if args.paintmode:
+            loadimg = cv2.imread(args.paintmode)
+            lower = np.array([250 for color in 'bgr'])
+            upper = np.array([256 for color in 'bgr'])
+            mask = cv2.inRange(loadimg, lower, upper)
+
+            # Get pointer
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
+            
+            loadimg.fill(0)
+            for idx in range(1,num_labels):
+                labels[labels==idx] = (idx%3)+2
+            
+            loadimg[labels==2,0] = 255
+            loadimg[labels==3,1] = 255
+            loadimg[labels==4,2] = 255
+
+            cv2.imshow("loadimg", loadimg)
+    except:
+        print(f"Erro a ler o ficheiro {args.paintmode}!")
+        exit(1)
+   
+
+
+
     try:
         f = open(args.json)
         limits = json.load(f)
@@ -131,8 +159,10 @@ def main():
     # Create white image
     n_channels = 4
     canvas = np.zeros((height, width, n_channels), np.uint8)
-    if args.whiteboard:
+    if not args.cameramode:
         canvas.fill(255)
+
+   
 
     # Pencil start state
     pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}    
@@ -188,19 +218,19 @@ def main():
             cv2.imshow(mask_window, mask_max)
 
         # Combine frame with drawing
-        if not args.whiteboard:
-            drawing = drawOnImage(frame, canvas)     
+     
+        drawing = drawOnImage(frame, canvas) if args.cameramode else canvas.copy()
 
         # Show 
         cv2.imshow(video_window, frame)
-        cv2.imshow(canvas_window, canvas if args.whiteboard else drawing)
+        cv2.imshow(canvas_window, drawing)
         
         # Key controls
         key = cv2.waitKey(1)
 
         # Check if drawing rectangle or circle
         shape = chr(key) if key in [ord('s'), ord('e')] else None
-
+        print(key)
         if shape and pencil["last_point"]:
             if shape == pencil["shape"]:
                 drawShape(canvas, pencil, centroid)
@@ -234,12 +264,15 @@ def main():
                 print('Can not decrease any further')
 
         elif key == ord('c'):
-            canvas.fill(0)
+            if args.cameramode: # make all pixels transparent
+                canvas[:,:,3] = np.zeros((height, width)) 
+            else: # paint all pixels as white
+                canvas.fill(255)
             print('Cleared canvas')
         
         elif key == ord('w'):
             file_name = 'drawing_' + datetime.now().strftime('%a_%b_%m_%H:%M:%S_%Y') + '.png'
-            cv2.imwrite(file_name, canvas if args.whiteboard else drawing)
+            cv2.imwrite(file_name, drawing)
             print('Saved canvas to ' + file_name)
 
         elif key == ord('q'):
