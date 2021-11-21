@@ -80,6 +80,11 @@ class ImageHandler:
         self.key_counter = {None: None}
 
     def getLimitsFromFile(self, file):
+        """Get the threshold limits from file
+
+        Args:
+            file (string): File path.
+        """        
 
         try:
             f = open(file)
@@ -94,31 +99,41 @@ class ImageHandler:
             exit(1)
 
     def startWindows(self):
+        """Start all cv2 widnows.
+        """        
 
         cv2.namedWindow(self.video_window)
         cv2.namedWindow(self.mask_window)
         cv2.namedWindow(self.canvas_window)
 
     def setCanvasCallback(self):
+        """Set canvas callback method.
+        """        
         self.mouse_handler = MouseHandler(self.canvas, self.pencil)
         cv2.setMouseCallback(self.canvas_window, self.mouse_handler.onMouseClick)
 
     def startVideoCapture(self, index=0):
+        """Start video capture.
 
-        try:
-            self.capture = cv2.VideoCapture(index)
+        Args:
+            index (int, optional): Camera index. Defaults to 0.
 
-            # Get initial frame and size
-            if self.capture.isOpened(): 
-                self.img_width  = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
-                self.img_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
-            else:
-                raise Exception(f'Could not open camera {index}.')
+        Returns:
+            bool: Success.
+        """         
+        self.capture = cv2.VideoCapture(index)
 
-        except:
-            pass # TODO
+        # Get initial frame and size
+        if self.capture.isOpened(): 
+            self.img_width  = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+            self.img_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+            
+        return self.capture.isOpened()
+
 
     def startCanvas(self):
+        """Start user canvas.
+        """        
 
         # Create white canvas
         self.canvas = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
@@ -155,11 +170,17 @@ class ImageHandler:
             exit(1)
 
     def handleKey(self, key):       
+        """Handle key press.
+
+        Args:
+            key (int): ASCII code of key pressed.
+
+        Returns:
+            bool: True if quit, False otherwise.
+        """        
 
         # Check if drawing rectangle or circle
-        shape = chr(key) if key in [ord('s'), ord('e')] else None
-
-        
+        shape = chr(key) if key in [ord('s'), ord('e')] else None        
       
         if shape and self.pencil["last_point"]:
             if shape == self.pencil["shape"]:
@@ -286,6 +307,15 @@ class ImageHandler:
             cv2.ellipse(image, pencil["last_point"], (distance_x, distance_y), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])  
 
     def getCrosshair(self, frame, display=True):
+        """Draw the crosshait on the image.
+
+        Args:
+            frame (np.ndarray): Image to be drawn.
+            display (bool, optional): Do an imshow of the image. Defaults to True.
+
+        Returns:
+            tuple: Centroid of the crosshair.
+        """        
 
         # Get mask of drawing tool
         mask = cv2.inRange(frame, self.pencil_lower_limits, self.pencil_upper_limits)
@@ -309,6 +339,11 @@ class ImageHandler:
         return None
 
     def paintingMode(self):
+        """Compute the score of the paiting.
+
+        Returns:
+            float: Accuracy/score.
+        """        
 
         # Give the painting a score
         black_template = np.array([0,0,0]) 
