@@ -346,7 +346,7 @@ def drawShape(image, pencil, centroid):
 
     Args:
         image (np.ndarray): Image to be drawn.
-        pencil (dict): Caracteristics of the shepes to be drawn.
+        pencil (dict): Caracteristics of the shapes to be drawn.
         centroid (tuple): Position of the shape.
     """    
     shape = pencil["shape"]
@@ -362,7 +362,7 @@ def welcomeMessage():
     """Print welcome message.
     """    
 
-    wellcome_text =f"""Hello! Welcome to our AR Painting app!
+    welcome_text =f"""Hello! Welcome to our AR Painting app!
     In this amazing app, you can draw either with your mouse or, even better, with any object segmented with color_segmenter.py!
 
     Here are the all important controls:
@@ -393,7 +393,7 @@ def welcomeMessage():
     """.replace("\n    ","\n")
 
 
-    print(wellcome_text)
+    print(welcome_text)
 
 def main():
 
