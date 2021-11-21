@@ -35,7 +35,7 @@ class MouseHandler:
         self.last_point = None
 
     def onMouseClick(self, event,x,y,flags,param):
-        # print(event)
+        
         if event == cv2.EVENT_LBUTTONDOWN:
             self.drawing = True
             self.last_point = (x,y)
@@ -292,16 +292,16 @@ def main():
                 # Save last point
                 pencil["last_point"] = centroid
             else:
-                drawShape(frame, pencil, centroid)
+                drawShape(canvas, pencil, centroid)
 
             cv2.imshow(mask_window, mask_max)
 
         # Combine frame with drawing
-        drawing = drawOnImage(frame, canvas) if args.cameramode else canvas.copy()
-        
+        drawing = drawOnImage(frame, canvas) if args.cameramode else canvas.copy()        
         drawing = drawOnImage(drawing[:,:,:3], persistent_background)
 
         if args.paintmode:
+            # Give a painting score
             black_template = np.array([0,0,0]) 
             valid_indexes = np.bitwise_not(np.all(goal_paint==black_template,axis=2))
        
