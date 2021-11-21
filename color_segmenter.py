@@ -115,7 +115,6 @@ def main():
     # Finalize
     cap.release()
 
-
 """
 MAIN
 """

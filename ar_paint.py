@@ -21,45 +21,9 @@ TODO
 """
 CLASS DEFINITIONS
 """
-
-"""
-FUNCTIONS DEFINITIONS
-"""
-def drawCross(image, center, size = 20, color = (0,0,255), line_width = 2):
-    
-    cv2.line(image, (center[0] - size, center[1]), (center[0] + size, center[1]), color, line_width)
-    cv2.line(image, (center[0], center[1] - size), (center[0], center[1] + size), color, line_width)
-
-    return image
-
-def drawOnImage(image, drawing):
-
-    mask = drawing[:,:,3] # Use alpha channel as mask
-    mask_inv = cv2.bitwise_not(mask)
-
-    background = cv2.bitwise_and(image, image, mask=mask_inv)
-    foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
-    foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
-
-    return cv2.add(background, foreground)
-
-def distanceOf2Points(p1,p2):
-    
-    return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5
-
-
-def drawShape(image, pencil, centroid):
-    shape = pencil["shape"]
-
-    if shape == 's':
-        cv2.rectangle(image, pencil["last_point"], centroid, pencil['color'], pencil['size'])
-    elif shape == 'e': 
-        cv2.ellipse(image, pencil["last_point"], (abs(centroid[0]-pencil["last_point"][0]),abs(centroid[1]-pencil["last_point"][1]) ), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])
-
-
-class ImageHandler:
-    def __init__(self): # to avoid using global variables
-        pass
+# class ImageHandler:
+#     def __init__(self): # to avoid using global variables
+#         pass
 
 
 class MouseHandler:
@@ -75,7 +39,6 @@ class MouseHandler:
             self.drawing = True
             self.last_point = (x,y)
 
-
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.drawing:
                 cv2.line(self.canvas, self.last_point, (x,y), self.pencil['color'], self.pencil['size'])
@@ -83,8 +46,114 @@ class MouseHandler:
 
         elif event == cv2.EVENT_LBUTTONUP:
             self.drawing = False
-            
 
+"""
+FUNCTIONS DEFINITIONS
+"""
+def drawCrosshair(image, center, size = 20, color = (0,0,255), line_width = 2):
+    """Function to draw a crosshair into an image
+
+    Args:
+        image (np.ndarray): Image where the crosshair will be drawn.
+        center (tuple): Center position of the crosshair in the image.
+        size (int, optional): Size of the crosshair, in pix. Defaults to 20.
+        color (tuple, optional): Color of the crosshair. Defaults to (0,0,255).
+        line_width (int, optional): With of the crosshair. Defaults to 2.
+
+    Returns:
+        np.ndarray: Image with the crosshair drawn.
+    """    
+    
+    cv2.line(image, (center[0] - size, center[1]), (center[0] + size, center[1]), color, line_width)
+    cv2.line(image, (center[0], center[1] - size), (center[0], center[1] + size), color, line_width)
+
+    return image
+
+def drawOnImage(image, drawing):
+    """Helper function to draw on top of another image.
+
+    Args:
+        image (np.ndarray): Background image.
+        drawing (np.ndarray): Foreground image.
+
+    Returns:
+        np.ndarray: Drawn image.
+    """    
+
+    mask = drawing[:,:,3] # Use alpha channel as mask
+    mask_inv = cv2.bitwise_not(mask)
+
+    background = cv2.bitwise_and(image, image, mask=mask_inv)
+    foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
+    foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
+
+    return cv2.add(background, foreground)
+
+def distanceOf2Points(p1,p2):
+    """Compute the distance between two 2D points.
+
+    Args:
+        p1 (tuple): Point 1.
+        p2 (tuple): Point 2.
+
+    Returns:
+        float: Distance.
+    """    
+    
+    return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5
+
+def drawShape(image, pencil, centroid):
+    """Draw a shape ('circle' or 'rectangle') into an image.
+
+    Args:
+        image (np.ndarray): Image to be drawn.
+        pencil (dict): Caracteristics of the shepes to be drawn.
+        centroid (tuple): Position of the shape.
+    """    
+    shape = pencil["shape"]
+
+    if shape == 's':
+        cv2.rectangle(image, pencil["last_point"], centroid, pencil['color'], pencil['size'])
+    elif shape == 'e': 
+        cv2.ellipse(image, pencil["last_point"], (abs(centroid[0]-pencil["last_point"][0]),abs(centroid[1]-pencil["last_point"][1]) ), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])  
+
+def welcomeMessage():
+    """Print welcome message.
+    """    
+
+    lines= []
+    lines.append("Hello! Welcome to our AR Painting app!")
+    lines.append("In this amazing app, you can draw either with your mouse or, even better, with any object segmented with color_segmenter.py!")
+    lines.append("")
+    lines.append("Here are the all important controls:")
+    lines.append("")
+    lines.append(Style.BRIGHT + "[COLORS]" + Style.RESET_ALL)
+    lines.append(Fore.RED + "    'r' - red" + Style.RESET_ALL)
+    lines.append(Fore.GREEN + "    'g' - green" + Style.RESET_ALL)
+    lines.append(Fore.BLUE + "    'b' - blue" + Style.RESET_ALL)
+    lines.append("")
+    lines.append(Style.BRIGHT + "[LINE]" + Style.RESET_ALL)
+    lines.append("    '+' - increase size")
+    lines.append("    '-' - decrease size")
+    lines.append("")
+    lines.append(Style.BRIGHT + "[SHAPES]" + Style.RESET_ALL)
+    lines.append("    's' - square/rectangle")
+    lines.append("    'e' - ellipse/circle")
+    lines.append("")
+    lines.append("    To use this mode, you press once to start the shape, and press again to end it.")
+    lines.append("")
+    lines.append(Style.BRIGHT + "[MISC]" + Style.RESET_ALL)
+    lines.append("    'c' - clear the canvas")
+    lines.append("    'w' - write the canvas disk")
+    lines.append("    'q' - quit ")
+    lines.append("")
+    lines.append("Let you inner Picasso take the best of you! :)")
+    lines.append("")
+    lines.append("(c) PSR 21-22 G13")
+    lines.append("")
+
+    for line in lines:
+        print(line)
 
 def main():
 
@@ -98,15 +167,16 @@ def main():
 
     args = parser.parse_args()
 
-    # Read file
-    # TODO check if file exists
-    
+    # Read file    
     try:
         f = open(args.json)
         limits = json.load(f)
     except:
         print(f"Erro a ler o ficheiro {args.json}!")
         exit(1)
+
+    # Print welcome message
+    welcomeMessage()
 
     # Get thresholds
     lower = np.array([limits['limits'][color]['min'] for color in 'bgr'])
@@ -116,7 +186,7 @@ def main():
     video_window = 'Video'
     canvas_window = 'Canvas'
     mask_window = 'Mask'
-    goal_paint_window = 'goal_paint'
+    goal_paint_window = 'Goal Paint'
 
     cv2.namedWindow(video_window)
     cv2.namedWindow(mask_window)
@@ -131,7 +201,7 @@ def main():
     else:
         raise Exception('Could not open camera 0.')
     
-    # Create white image
+    # Create white canvas
     n_channels = 4
     canvas = np.zeros((height, width, n_channels), np.uint8)
     persistent_background = np.zeros((height, width, n_channels), np.uint8)
@@ -139,9 +209,10 @@ def main():
     if not args.cameramode:
         canvas.fill(255)
 
-
     try:
         if args.paintmode:
+
+            # Read the image to be painted and build a mask
             goal_paint = cv2.imread(args.paintmode)
             lower = np.array([250 for color in 'bgr'])
             upper = np.array([256 for color in 'bgr'])
@@ -158,32 +229,33 @@ def main():
             goal_paint[labels==3,1] = 255
             goal_paint[labels==4,2] = 255
 
-            persistent_background[labels==0,3] = 255         
+            persistent_background[labels==0,3] = 255
    
     except:
         print(f"Erro a ler o ficheiro {args.paintmode}!")
         exit(1)
-   
 
     # Pencil start state
     pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}    
 
+    # Start mouse callback for drawing
     mouse_handler = MouseHandler(canvas, pencil)
-
     cv2.setMouseCallback(canvas_window, mouse_handler.onMouseClick)
-    # Misc
+
+    # Misc initializations
     norm_threshold = 150
 
+    # Loop
     while True:
 
         # Read frame
         _, frame = cap.read()
 
+        # Mirror image for better compreension
         if args.mirror:
-            frame = cv2.flip(frame, 1) # code for horizontal 
-          
+            frame = cv2.flip(frame, 1) # code for horizontal         
 
-        # Get mask
+        # Get mask of drawing tool
         mask = cv2.inRange(frame, lower, upper)
 
         # Get pointer
@@ -200,8 +272,9 @@ def main():
             centroid = tuple(centroids[index, :].astype(np.int32))
             # Draw cross
 
+            # If not using mouse, draw the crosshair
             if not mouse_handler.drawing:
-                frame = drawCross(frame, centroid, color=pencil['color'] )
+                frame = drawCrosshair(frame, centroid, color=pencil['color'] )
          
             last_point = pencil["last_point"] # help legibility
             
@@ -218,13 +291,13 @@ def main():
             else:
                 drawShape(frame, pencil, centroid)
 
-
             cv2.imshow(mask_window, mask_max)
 
         # Combine frame with drawing
         drawing = drawOnImage(frame, canvas) if args.cameramode else canvas.copy()
         
         drawing = drawOnImage(drawing[:,:,:3], persistent_background)
+        
         if args.paintmode:
             black_template = np.array([0,0,0]) 
             valid_indexes = np.bitwise_not(np.all(goal_paint==black_template,axis=2))
@@ -238,10 +311,10 @@ def main():
             accuracy = all_valid_hits.sum()/valid_indexes.sum()
             cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
             cv2.imshow(goal_paint_window, goal_display)
+
         # Show 
         cv2.imshow(video_window, frame)
         cv2.imshow(canvas_window, drawing)
-        
         
         # Key controls
         key = cv2.waitKey(1)
@@ -259,16 +332,19 @@ def main():
                 pencil["last_point"] = centroid
 
         elif key == ord('r'):
-            pencil['color'] = (0, 0, 255, 255)
-            print('Set pencil color to ' + Fore.RED + 'red' + Style.RESET_ALL)
+            if pencil['color'] != (0, 0, 255, 255):
+                pencil['color'] = (0, 0, 255, 255)
+                print('Set pencil color to ' + Fore.RED + 'red' + Style.RESET_ALL)
 
         elif key == ord('g'):
-            pencil['color'] = (0, 255, 0, 255)
-            print('Set pencil color to ' + Fore.GREEN + 'green' + Style.RESET_ALL)
+            if pencil['color'] != (0, 255, 0, 255):
+                pencil['color'] = (0, 255, 0, 255)
+                print('Set pencil color to ' + Fore.GREEN + 'green' + Style.RESET_ALL)
         
         elif key == ord('b'):
-            pencil['color'] = (255, 0, 0, 255)
-            print('Set pencil color to ' + Fore.BLUE + 'blue' + Style.RESET_ALL)
+            if pencil['color'] != (255, 0, 0, 255):
+                pencil['color'] = (255, 0, 0, 255)
+                print('Set pencil color to ' + Fore.BLUE + 'blue' + Style.RESET_ALL)
 
         elif key == ord('+'):
             pencil['size'] += 1
@@ -294,16 +370,8 @@ def main():
             print('Saved canvas to ' + file_name)
 
         elif key == ord('q'):
-            break
-
-
-
-
-           
+            break  
             
-
-
-
 """
 MAIN
 """
