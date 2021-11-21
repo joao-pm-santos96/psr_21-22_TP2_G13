@@ -60,7 +60,7 @@ class ImageHandler:
 
             # Get thresholds
             self.pencil_lower_limits = np.array([limits['limits'][color]['min'] for color in 'bgr'])
-            self.pencil_upper_limits_limits = np.array([limits['limits'][color]['max'] for color in 'bgr'])
+            self.pencil_upper_limits = np.array([limits['limits'][color]['max'] for color in 'bgr'])
 
         except:
             print(f"Erro a ler o ficheiro {file}!")
@@ -419,7 +419,7 @@ def main():
     # Start mouse callback for drawing
     image_handler.setCanvasCallback()
 
-    # image_handler.main()
+    image_handler.main()
 
         
 
