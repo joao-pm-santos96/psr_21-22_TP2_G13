@@ -22,6 +22,31 @@ TODO
 """
 CLASS DEFINITIONS
 """
+class MouseHandler:
+    def __init__(self, canvas, pencil):
+        self.canvas = canvas
+        self.pencil = pencil
+        self.drawing = False
+        self.last_point = None
+
+    def onMouseClick(self, event,x,y,flags,param):
+
+        if event == cv2.EVENT_LBUTTONDOWN:
+            self.drawing = True
+            self.last_point = (x,y)
+            
+        elif event == cv2.EVENT_MOUSEMOVE:
+            if self.drawing:
+                cv2.line(self.canvas, self.last_point, (x,y), self.pencil['color'], self.pencil['size'])
+                self.last_point = (x,y)
+                
+
+        elif event == cv2.EVENT_LBUTTONUP:
+            self.drawing = False
+        
+
+
+
 class ImageHandler:
     def __init__(self, shake_prevention = False, mirror = False, camera_mode = False, paint_mode = False): # to avoid using global variables
 
@@ -51,7 +76,7 @@ class ImageHandler:
         self.pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}
 
         self.shake_threshold = 150
-        self.mouse_handler = MouseHandler(self.canvas, self.pencil)
+        
 
     def getLimitsFromFile(self, file):
         try:
@@ -73,6 +98,7 @@ class ImageHandler:
         cv2.namedWindow(self.canvas_window)
 
     def setCanvasCallback(self):
+        self.mouse_handler = MouseHandler(self.canvas, self.pencil)
         cv2.setMouseCallback(self.canvas_window, self.mouse_handler.onMouseClick)
 
     def startVideoCapture(self, index=0):
@@ -95,7 +121,7 @@ class ImageHandler:
         # Create white canvas
         self.canvas = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
         self.persistent_background = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
-        
+
         if not self.camera_mode:
             self.canvas.fill(255)
 
@@ -130,7 +156,7 @@ class ImageHandler:
         
         # Check if drawing rectangle or circle
         shape = chr(key) if key in [ord('s'), ord('e')] else None
-
+      
         if shape and self.pencil["last_point"]:
             if shape == self.pencil["shape"]:
                 drawShape(self.canvas, self.pencil, self.centroid)
@@ -143,32 +169,32 @@ class ImageHandler:
         elif key == ord('r'):
             if self.pencil['color'] != (0, 0, 255, 255):
                 self.pencil['color'] = (0, 0, 255, 255)
-                print('Set pencil color to ' + Fore.RED + 'red' + Style.RESET_ALL)
+                print(f"Set pencil color to {Fore.RED}red{Style.RESET_ALL}")
 
         elif key == ord('g'):
             if self.pencil['color'] != (0, 255, 0, 255):
                 self.pencil['color'] = (0, 255, 0, 255)
-                print('Set pencil color to ' + Fore.GREEN + 'green' + Style.RESET_ALL)
+                print(f"Set pencil color to {Fore.GREEN}green{Style.RESET_ALL}")
         
         elif key == ord('b'):
             if self.pencil['color'] != (255, 0, 0, 255):
                 self.pencil['color'] = (255, 0, 0, 255)
-                print('Set pencil color to ' + Fore.BLUE + 'blue' + Style.RESET_ALL)
+                print(f"Set pencil color to {Fore.BLUE}blue{Style.RESET_ALL}")
 
         elif key == ord('+'):
             self.pencil['size'] += 1
-            print('Increased pencil size to ' + str(self.pencil['size']))
+            print(f"Increased pencil size to {self.pencil['size']}")
         
         elif key == ord('-'):
             if self.pencil['size'] > 2:
                 self.pencil['size'] -= 1
-                print('Decreased pencil size to ' + str(self.pencil['size']))
+                print(f"Decreased pencil size to {self.pencil['size']}")
             else:
-                print('Can not decrease any further')
+                print("Can not decrease any further")
 
         elif key == ord('c'):
             if self.camera_mode: # make all pixels transparent
-                self.canvas[:,:,:] = 0 
+                self.canva.fill(0) 
             else: # paint all pixels as white
                 self.canvas.fill(255)
             print('Cleared canvas')
@@ -226,13 +252,14 @@ class ImageHandler:
 
                     # Save last point
                     self.pencil["last_point"] = self.centroid
-                else:
-                    drawShape(self.canvas, self.pencil, self.centroid)
+                    
 
                 cv2.imshow(self.mask_window, mask_max)
 
             # Combine frame with drawing
             drawing = drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas.copy()        
+            if self.pencil["shape"] != '.':
+                drawShape(drawing, self.pencil, self.centroid)
             drawing = drawOnImage(drawing[:,:,:3], self.persistent_background)
 
             if self.paint_mode:
@@ -258,26 +285,6 @@ class ImageHandler:
                 break 
 
 
-class MouseHandler:
-    def __init__(self, canvas, pencil):
-        self.canvas = canvas
-        self.pencil = pencil
-        self.drawing = False
-        self.last_point = None
-
-    def onMouseClick(self, event,x,y,flags,param):
-        
-        if event == cv2.EVENT_LBUTTONDOWN:
-            self.drawing = True
-            self.last_point = (x,y)
-
-        elif event == cv2.EVENT_MOUSEMOVE:
-            if self.drawing:
-                cv2.line(self.canvas, self.last_point, (x,y), self.pencil['color'], self.pencil['size'])
-                self.last_point = (x,y)
-
-        elif event == cv2.EVENT_LBUTTONUP:
-            self.drawing = False
 
 """
 FUNCTIONS DEFINITIONS
@@ -347,45 +354,46 @@ def drawShape(image, pencil, centroid):
     if shape == 's':
         cv2.rectangle(image, pencil["last_point"], centroid, pencil['color'], pencil['size'])
     elif shape == 'e': 
-        cv2.ellipse(image, pencil["last_point"], (abs(centroid[0]-pencil["last_point"][0]),abs(centroid[1]-pencil["last_point"][1]) ), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])  
+        distance_x = abs(centroid[0]-pencil["last_point"][0])
+        distance_y = abs(centroid[1]-pencil["last_point"][1])
+        cv2.ellipse(image, pencil["last_point"], (distance_x, distance_y), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])  
 
 def welcomeMessage():
     """Print welcome message.
     """    
 
-    lines= []
-    lines.append("Hello! Welcome to our AR Painting app!")
-    lines.append("In this amazing app, you can draw either with your mouse or, even better, with any object segmented with color_segmenter.py!")
-    lines.append("")
-    lines.append("Here are the all important controls:")
-    lines.append("")
-    lines.append(Style.BRIGHT + "[COLORS]" + Style.RESET_ALL)
-    lines.append(Fore.RED + "    'r' - red" + Style.RESET_ALL)
-    lines.append(Fore.GREEN + "    'g' - green" + Style.RESET_ALL)
-    lines.append(Fore.BLUE + "    'b' - blue" + Style.RESET_ALL)
-    lines.append("")
-    lines.append(Style.BRIGHT + "[LINE]" + Style.RESET_ALL)
-    lines.append("    '+' - increase size")
-    lines.append("    '-' - decrease size")
-    lines.append("")
-    lines.append(Style.BRIGHT + "[SHAPES]" + Style.RESET_ALL)
-    lines.append("    's' - square/rectangle")
-    lines.append("    'e' - ellipse/circle")
-    lines.append("")
-    lines.append("    To use this mode, you press once to start the shape, and press again to end it.")
-    lines.append("")
-    lines.append(Style.BRIGHT + "[MISC]" + Style.RESET_ALL)
-    lines.append("    'c' - clear the canvas")
-    lines.append("    'w' - write the canvas disk")
-    lines.append("    'q' - quit ")
-    lines.append("")
-    lines.append("Let you inner Picasso take the best of you! :)")
-    lines.append("")
-    lines.append("(c) PSR 21-22 G13")
-    lines.append("")
+    wellcome_text =f"""Hello! Welcome to our AR Painting app!
+    In this amazing app, you can draw either with your mouse or, even better, with any object segmented with color_segmenter.py!
 
-    for line in lines:
-        print(line)
+    Here are the all important controls:
+
+    {Style.BRIGHT}[COLORS]{Style.RESET_ALL}
+    {Fore.RED}    'r' - red {Style.RESET_ALL}
+    {Fore.GREEN}    'g' - green{Style.RESET_ALL}
+    {Fore.BLUE}    'b' - blue{Style.RESET_ALL}
+
+    {Style.BRIGHT}[LINE]{Style.RESET_ALL}
+        '+' - increase size
+        '-' - decrease size
+
+    {Style.BRIGHT}[SHAPES]{Style.RESET_ALL}
+        's' - square/rectangle
+        'e' - ellipse/circle
+
+        To use this mode, you press once to start the shape, and press again to end it.
+
+    {Style.BRIGHT}[MISC]{Style.RESET_ALL}
+        'c' - clear the canvas
+        'w' - write the canvas disk
+        'q' - quit 
+
+    Let you inner Picasso take the best of you! :)
+
+    (c) PSR 21-22 G13
+    """.replace("\n    ","\n")
+
+
+    print(wellcome_text)
 
 def main():
 
@@ -423,10 +431,5 @@ def main():
 
         
 
-        
-            
-"""
-MAIN
-"""
 if __name__ == '__main__':
     main()
