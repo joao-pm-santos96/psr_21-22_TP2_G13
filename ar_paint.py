@@ -93,40 +93,14 @@ def main():
     parser.add_argument('-j', '--json', type=str, required=True, help='Full path to json file.')
     parser.add_argument('-usp', '--use_shake_prevention', default=False, action='store_true', help='Use shake prevention functionality. Defaults fo False.')
     parser.add_argument('-cm', '--cameramode', default=False, action='store_true', help='Use a camera video instead feed a whiteboard to draw.')
-    parser.add_argument('-paint', '--paintmode', type=str, help='Use a whiteboard to draw instead of camera video feed.')
-    
+    parser.add_argument('-paint', '--paintmode', type=str, help='Use paintmode on a given image')
+    parser.add_argument('-m', '--mirror', default=False, action='store_true', help='Mirror camera input horizontally')
 
     args = parser.parse_args()
 
     # Read file
     # TODO check if file exists
     
-    try:
-        if args.paintmode:
-            loadimg = cv2.imread(args.paintmode)
-            lower = np.array([250 for color in 'bgr'])
-            upper = np.array([256 for color in 'bgr'])
-            mask = cv2.inRange(loadimg, lower, upper)
-
-            # Get pointer
-            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
-            
-            loadimg.fill(0)
-            for idx in range(1,num_labels):
-                labels[labels==idx] = (idx%3)+2
-            
-            loadimg[labels==2,0] = 255
-            loadimg[labels==3,1] = 255
-            loadimg[labels==4,2] = 255
-
-            cv2.imshow("loadimg", loadimg)
-    except:
-        print(f"Erro a ler o ficheiro {args.paintmode}!")
-        exit(1)
-   
-
-
-
     try:
         f = open(args.json)
         limits = json.load(f)
@@ -142,6 +116,7 @@ def main():
     video_window = 'Video'
     canvas_window = 'Canvas'
     mask_window = 'Mask'
+    goal_paint_window = 'goal_paint'
 
     cv2.namedWindow(video_window)
     cv2.namedWindow(mask_window)
@@ -159,9 +134,35 @@ def main():
     # Create white image
     n_channels = 4
     canvas = np.zeros((height, width, n_channels), np.uint8)
+    persistent_background = np.zeros((height, width, n_channels), np.uint8)
+    
     if not args.cameramode:
         canvas.fill(255)
 
+
+    try:
+        if args.paintmode:
+            goal_paint = cv2.imread(args.paintmode)
+            lower = np.array([250 for color in 'bgr'])
+            upper = np.array([256 for color in 'bgr'])
+            mask = cv2.inRange(goal_paint, lower, upper)
+
+            # Get pointer
+            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
+            
+            goal_paint.fill(0)
+            for idx in range(1,num_labels):
+                labels[labels==idx] = (idx%3)+2
+            
+            goal_paint[labels==2,0] = 255
+            goal_paint[labels==3,1] = 255
+            goal_paint[labels==4,2] = 255
+
+            persistent_background[labels==0,3] = 255         
+   
+    except:
+        print(f"Erro a ler o ficheiro {args.paintmode}!")
+        exit(1)
    
 
     # Pencil start state
@@ -177,6 +178,10 @@ def main():
 
         # Read frame
         _, frame = cap.read()
+
+        if args.mirror:
+            frame = cv2.flip(frame, 1) # code for horizontal 
+          
 
         # Get mask
         mask = cv2.inRange(frame, lower, upper)
@@ -211,26 +216,39 @@ def main():
                 # Save last point
                 pencil["last_point"] = centroid
             else:
-                
                 drawShape(frame, pencil, centroid)
 
 
             cv2.imshow(mask_window, mask_max)
 
         # Combine frame with drawing
-     
         drawing = drawOnImage(frame, canvas) if args.cameramode else canvas.copy()
-
+        
+        drawing = drawOnImage(drawing[:,:,:3], persistent_background)
+        if args.paintmode:
+            black_template = np.array([0,0,0]) 
+            valid_indexes = np.bitwise_not(np.all(goal_paint==black_template,axis=2))
+       
+            all_hits = np.all(goal_paint==canvas[:,:,:3],axis=2)
+            
+            all_valid_hits = np.logical_and(all_hits, valid_indexes)
+          
+            goal_display = goal_paint.copy()
+            
+            accuracy = all_valid_hits.sum()/valid_indexes.sum()
+            cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
+            cv2.imshow(goal_paint_window, goal_display)
         # Show 
         cv2.imshow(video_window, frame)
         cv2.imshow(canvas_window, drawing)
+        
         
         # Key controls
         key = cv2.waitKey(1)
 
         # Check if drawing rectangle or circle
         shape = chr(key) if key in [ord('s'), ord('e')] else None
-        print(key)
+
         if shape and pencil["last_point"]:
             if shape == pencil["shape"]:
                 drawShape(canvas, pencil, centroid)
@@ -251,7 +269,7 @@ def main():
         elif key == ord('b'):
             pencil['color'] = (255, 0, 0, 255)
             print('Set pencil color to ' + Fore.BLUE + 'blue' + Style.RESET_ALL)
-        
+
         elif key == ord('+'):
             pencil['size'] += 1
             print('Increased pencil size to ' + str(pencil['size']))
@@ -265,7 +283,7 @@ def main():
 
         elif key == ord('c'):
             if args.cameramode: # make all pixels transparent
-                canvas[:,:,3] = np.zeros((height, width)) 
+                canvas[:,:,:] = 0 
             else: # paint all pixels as white
                 canvas.fill(255)
             print('Cleared canvas')
