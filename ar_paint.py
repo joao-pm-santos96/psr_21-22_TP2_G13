@@ -387,7 +387,7 @@ def welcomeMessage():
         'w' - write the canvas disk
         'q' - quit 
 
-    Let you inner Picasso take the best of you! :)
+    Let your inner Picasso take the best of you! :)
 
     (c) PSR 21-22 G13
     """.replace("\n    ","\n")
