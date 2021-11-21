@@ -38,16 +38,13 @@ class MouseHandler:
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.drawing:
                 cv2.line(self.canvas, self.last_point, (x,y), self.pencil['color'], self.pencil['size'])
-                self.last_point = (x,y)
-                
+                self.last_point = (x,y)                
 
         elif event == cv2.EVENT_LBUTTONUP:
             self.drawing = False
-        
-
-
 
 class ImageHandler:
+
     def __init__(self, shake_prevention = False, mirror = False, camera_mode = False, paint_mode = False): # to avoid using global variables
 
         self.shake_prevention = shake_prevention
@@ -73,12 +70,17 @@ class ImageHandler:
         self.goal_paint = None
         self.centroid = None
 
-        self.pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}
+        self.mouse_handler = None
 
-        self.shake_threshold = 150
-        
+        self.pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}
+        self.drawing = None
+
+        self.shake_threshold = 150        
+
+        self.key_counter = {None: None}
 
     def getLimitsFromFile(self, file):
+
         try:
             f = open(file)
             limits = json.load(f)
@@ -152,19 +154,23 @@ class ImageHandler:
             print(f"Erro a ler o ficheiro {self.paint_mode}!")
             exit(1)
 
-    def handleKey(self, key):
-        
+    def handleKey(self, key):       
+
         # Check if drawing rectangle or circle
         shape = chr(key) if key in [ord('s'), ord('e')] else None
+
+        
       
         if shape and self.pencil["last_point"]:
             if shape == self.pencil["shape"]:
-                drawShape(self.canvas, self.pencil, self.centroid)
+                self.drawShape(self.canvas, self.pencil, self.centroid)
                 self.pencil["shape"] = '.'
                 self.pencil["last_point"] = None
             else:
                 self.pencil["shape"] = shape
                 self.pencil["last_point"] = self.centroid
+
+
 
         elif key == ord('r'):
             if self.pencil['color'] != (0, 0, 255, 255):
@@ -194,56 +200,151 @@ class ImageHandler:
 
         elif key == ord('c'):
             if self.camera_mode: # make all pixels transparent
-                self.canva.fill(0) 
+                self.canvas.fill(0) 
             else: # paint all pixels as white
                 self.canvas.fill(255)
             print('Cleared canvas')
         
         elif key == ord('w'):
             file_name = 'drawing_' + datetime.now().strftime('%a_%b_%m_%H:%M:%S_%Y') + '.png'
-            cv2.imwrite(file_name, self.drawing)
+            cv2.imwrite(file_name, self.drawing) 
             print('Saved canvas to ' + file_name)
 
         elif key == ord('q'):
             return True  
 
+        return False
 
-    def main(self):
+    
+    def drawCrosshair(self, image, center, size = 20, color = (0,0,255), line_width = 2):
+        """Function to draw a crosshair into an image
+
+        Args:
+            image (np.ndarray): Image where the crosshair will be drawn.
+            center (tuple): Center position of the crosshair in the image.
+            size (int, optional): Size of the crosshair, in pix. Defaults to 20.
+            color (tuple, optional): Color of the crosshair. Defaults to (0,0,255).
+            line_width (int, optional): With of the crosshair. Defaults to 2.
+
+        Returns:
+            np.ndarray: Image with the crosshair drawn.
+        """    
+        
+        cv2.line(image, (center[0] - size, center[1]), (center[0] + size, center[1]), color, line_width)
+        cv2.line(image, (center[0], center[1] - size), (center[0], center[1] + size), color, line_width) 
+
+        return image
+
+    def drawOnImage(self, image, drawing):
+        """Helper function to draw on top of another image.
+
+        Args:
+            image (np.ndarray): Background image.
+            drawing (np.ndarray): Foreground image.
+
+        Returns:
+            np.ndarray: Drawn image.
+        """    
+
+        mask = drawing[:,:,3] # Use alpha channel as mask
+        mask_inv = cv2.bitwise_not(mask)
+
+        background = cv2.bitwise_and(image, image, mask=mask_inv)
+        foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
+        foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
+
+        return cv2.add(background, foreground)
+
+    def distanceOf2Points(self, p1,p2):
+        """Compute the distance between two 2D points.
+
+        Args:
+            p1 (tuple): Point 1.
+            p2 (tuple): Point 2.
+
+        Returns:
+            float: Distance.
+        """    
+        
+        return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5
+
+    def drawShape(self, image, pencil, centroid):
+        """Draw a shape ('circle' or 'rectangle') into an image.
+
+        Args:
+            image (np.ndarray): Image to be drawn.
+            pencil (dict): Caracteristics of the shepes to be drawn.
+            centroid (tuple): Position of the shape.
+        """    
+        shape = pencil["shape"]
+
+        if shape == 's':
+            cv2.rectangle(image, pencil["last_point"], centroid, pencil['color'], pencil['size'])
+        elif shape == 'e': 
+            distance_x = abs(centroid[0]-pencil["last_point"][0])
+            distance_y = abs(centroid[1]-pencil["last_point"][1])
+            cv2.ellipse(image, pencil["last_point"], (distance_x, distance_y), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])  
+
+    def getCrosshair(self, frame, display=True):
+
+        # Get mask of drawing tool
+        mask = cv2.inRange(frame, self.pencil_lower_limits, self.pencil_upper_limits)
+
+        # Get pointer
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
+
+        if num_labels > 1:
+                
+            # Get index ignoring the first one
+            index = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
+
+            # Get mask and centroid
+            mask_max = (labels == index).astype('uint8') * 255
+
+            if display:
+                cv2.imshow(self.mask_window, mask_max)
+
+            return tuple(centroids[index, :].astype(np.int32))
+
+        return None
+
+    def paintingMode(self):
+
+        # Give the painting a score
+        black_template = np.array([0,0,0]) 
+        valid_indexes = np.bitwise_not(np.all(self.goal_paint==black_template,axis=2))
+
+        all_hits = np.all(self.goal_paint==self.canvas[:,:,:3],axis=2)
+    
+        all_valid_hits = np.logical_and(all_hits, valid_indexes)
+
+        # Accuracy
+        return all_valid_hits.sum()/valid_indexes.sum()            
+
+    def run(self):
 
         # Loop
-        while True:
+        while self.capture.isOpened():
 
             # Read frame
             _, frame = self.capture.read()
 
             # Mirror image for better compreension
             if self.mirror:
-                frame = cv2.flip(frame, 1) # code for horizontal         
+                frame = cv2.flip(frame, 1) # code for horizontal  
 
-            # Get mask of drawing tool
-            mask = cv2.inRange(frame, self.pencil_lower_limits, self.pencil_upper_limits)
+            self.centroid = self.getCrosshair(frame, display=True)       
 
-            # Get pointer
-            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
-
-            # Get max area mask
-            if num_labels > 1:
-                
-                # Get index ignoring the first one
-                index = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
-
-                # Get mask and centroid
-                mask_max = (labels == index).astype('uint8') * 255
-                self.centroid = tuple(centroids[index, :].astype(np.int32))
+            if self.centroid is not None:
 
                 # If not using mouse, draw the crosshair
                 if not self.mouse_handler.drawing:
-                    frame = drawCrosshair(frame, self.centroid, color=self.pencil['color'] )
+                    frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color'])
                 
                 last_point = self.pencil["last_point"] # help legibility
 
                 # Compute norm between consecutive points
-                norm = distanceOf2Points(last_point, self.centroid) if (self.shake_prevention and last_point is not None) else 0
+                norm = self.distanceOf2Points(last_point, self.centroid) if (self.shake_prevention and last_point is not None) else 0
 
                 # Draw line
                 if self.pencil["shape"] == '.':
@@ -252,111 +353,35 @@ class ImageHandler:
 
                     # Save last point
                     self.pencil["last_point"] = self.centroid
-                    
-
-                cv2.imshow(self.mask_window, mask_max)
 
             # Combine frame with drawing
-            drawing = drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas.copy()        
-            if self.pencil["shape"] != '.':
-                drawShape(drawing, self.pencil, self.centroid)
-            drawing = drawOnImage(drawing[:,:,:3], self.persistent_background)
+            self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas.copy() 
+
+            if self.pencil["shape"] != '.' and self.centroid:
+                self.drawShape(self.drawing, self.pencil, self.centroid)
+
+            self.drawing = self.drawOnImage(self.drawing[:,:,:3], self.persistent_background)
 
             if self.paint_mode:
-                # Give the painting a score
-                black_template = np.array([0,0,0]) 
-                valid_indexes = np.bitwise_not(np.all(self.goal_paint==black_template,axis=2))
-
-                all_hits = np.all(self.goal_paint==self.canvas[:,:,:3],axis=2)
-            
-                all_valid_hits = np.logical_and(all_hits, valid_indexes)
-            
+                accuracy = self.paintingMode()   
+                
                 goal_display = self.goal_paint.copy()
 
-                accuracy = all_valid_hits.sum()/valid_indexes.sum()
                 cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
-                cv2.imshow(self.goal_paint_window, goal_display)
+                cv2.imshow(self.goal_paint_window, goal_display)            
 
             # Show 
             cv2.imshow(self.video_window, frame)
-            cv2.imshow(self.canvas_window, drawing)
+            cv2.imshow(self.canvas_window, self.drawing)
 
             if self.handleKey(cv2.waitKey(1)):
                 break 
 
-
+        self.capture.release()
 
 """
 FUNCTIONS DEFINITIONS
 """
-def drawCrosshair(image, center, size = 20, color = (0,0,255), line_width = 2):
-    """Function to draw a crosshair into an image
-
-    Args:
-        image (np.ndarray): Image where the crosshair will be drawn.
-        center (tuple): Center position of the crosshair in the image.
-        size (int, optional): Size of the crosshair, in pix. Defaults to 20.
-        color (tuple, optional): Color of the crosshair. Defaults to (0,0,255).
-        line_width (int, optional): With of the crosshair. Defaults to 2.
-
-    Returns:
-        np.ndarray: Image with the crosshair drawn.
-    """    
-    
-    cv2.line(image, (center[0] - size, center[1]), (center[0] + size, center[1]), color, line_width)
-    cv2.line(image, (center[0], center[1] - size), (center[0], center[1] + size), color, line_width)
-
-    return image
-
-def drawOnImage(image, drawing):
-    """Helper function to draw on top of another image.
-
-    Args:
-        image (np.ndarray): Background image.
-        drawing (np.ndarray): Foreground image.
-
-    Returns:
-        np.ndarray: Drawn image.
-    """    
-
-    mask = drawing[:,:,3] # Use alpha channel as mask
-    mask_inv = cv2.bitwise_not(mask)
-
-    background = cv2.bitwise_and(image, image, mask=mask_inv)
-    foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
-    foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
-
-    return cv2.add(background, foreground)
-
-def distanceOf2Points(p1,p2):
-    """Compute the distance between two 2D points.
-
-    Args:
-        p1 (tuple): Point 1.
-        p2 (tuple): Point 2.
-
-    Returns:
-        float: Distance.
-    """    
-    
-    return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5
-
-def drawShape(image, pencil, centroid):
-    """Draw a shape ('circle' or 'rectangle') into an image.
-
-    Args:
-        image (np.ndarray): Image to be drawn.
-        pencil (dict): Caracteristics of the shepes to be drawn.
-        centroid (tuple): Position of the shape.
-    """    
-    shape = pencil["shape"]
-
-    if shape == 's':
-        cv2.rectangle(image, pencil["last_point"], centroid, pencil['color'], pencil['size'])
-    elif shape == 'e': 
-        distance_x = abs(centroid[0]-pencil["last_point"][0])
-        distance_y = abs(centroid[1]-pencil["last_point"][1])
-        cv2.ellipse(image, pencil["last_point"], (distance_x, distance_y), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])  
 
 def welcomeMessage():
     """Print welcome message.
@@ -392,7 +417,6 @@ def welcomeMessage():
     (c) PSR 21-22 G13
     """.replace("\n    ","\n")
 
-
     print(wellcome_text)
 
 def main():
@@ -415,7 +439,6 @@ def main():
     camera_mode=args.cameramode,
     paint_mode=args.paintmode)
 
-    # Read file   
     image_handler.getLimitsFromFile(args.json)     
 
     image_handler.startWindows()
@@ -424,12 +447,9 @@ def main():
     
     image_handler.startCanvas()
 
-    # Start mouse callback for drawing
     image_handler.setCanvasCallback()
 
-    image_handler.main()
-
-        
+    image_handler.run()        
 
 if __name__ == '__main__':
     main()
