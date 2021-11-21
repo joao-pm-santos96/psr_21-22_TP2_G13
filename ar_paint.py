@@ -387,7 +387,7 @@ def welcomeMessage():
     """Print welcome message.
     """    
 
-    wellcome_text =f"""Hello! Welcome to our AR Painting app!
+    welcome_text =f"""Hello! Welcome to our AR Painting app!
     In this amazing app, you can draw either with your mouse or, even better, with any object segmented with color_segmenter.py!
 
     Here are the all important controls:
@@ -412,12 +412,13 @@ def welcomeMessage():
         'w' - write the canvas disk
         'q' - quit 
 
-    Let you inner Picasso take the best of you! :)
+    Let your inner Picasso take the best of you! :)
 
     (c) PSR 21-22 G13
     """.replace("\n    ","\n")
 
-    print(wellcome_text)
+
+    print(welcome_text)
 
 def main():
 
