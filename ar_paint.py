@@ -209,31 +209,34 @@ def main():
     if not args.cameramode:
         canvas.fill(255)
 
-    try:
-        if args.paintmode:
+    # try:
+    if args.paintmode:
 
-            # Read the image to be painted and build a mask
-            goal_paint = cv2.imread(args.paintmode)
-            lower = np.array([250 for color in 'bgr'])
-            upper = np.array([256 for color in 'bgr'])
-            mask = cv2.inRange(goal_paint, lower, upper)
+        # Read the image to be painted and build a mask
+        goal_paint = cv2.imread(args.paintmode, cv2.IMREAD_COLOR)
+        goal_paint = cv2.resize(goal_paint, (width, height))
 
-            # Get pointer
-            num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
-            
-            goal_paint.fill(0)
-            for idx in range(1,num_labels):
-                labels[labels==idx] = (idx%3)+2
-            
-            goal_paint[labels==2,0] = 255
-            goal_paint[labels==3,1] = 255
-            goal_paint[labels==4,2] = 255
+        # Build mask
+        lower = np.array([200 for color in 'bgr']) 
+        upper = np.array([256 for color in 'bgr']) 
+        mask = cv2.inRange(goal_paint, lower, upper)
 
-            persistent_background[labels==0,3] = 255
+        # Get stats
+        num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
+        
+        goal_paint.fill(0)
+        for idx in range(1,num_labels):
+            labels[labels==idx] = (idx%3)+2
+        
+        goal_paint[labels==2,0] = 255
+        goal_paint[labels==3,1] = 255
+        goal_paint[labels==4,2] = 255
+
+        persistent_background[labels==0,3] = 255
    
-    except:
-        print(f"Erro a ler o ficheiro {args.paintmode}!")
-        exit(1)
+    # except:
+        # print(f"Erro a ler o ficheiro {args.paintmode}!")
+        # exit(1)
 
     # Pencil start state
     pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}    
@@ -297,7 +300,7 @@ def main():
         drawing = drawOnImage(frame, canvas) if args.cameramode else canvas.copy()
         
         drawing = drawOnImage(drawing[:,:,:3], persistent_background)
-        
+
         if args.paintmode:
             black_template = np.array([0,0,0]) 
             valid_indexes = np.bitwise_not(np.all(goal_paint==black_template,axis=2))
