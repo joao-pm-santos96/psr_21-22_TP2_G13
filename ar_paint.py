@@ -37,7 +37,6 @@ class MouseHandler:
             
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.drawing:
-                # cv2.line(self.canvas, self.last_point, (x,y), self.pencil['color'], self.pencil['size'])
                 self.last_point = (x,y)  
                 
         elif event == cv2.EVENT_LBUTTONUP:
@@ -68,6 +67,7 @@ class ImageHandler:
 
         self.canvas = None
         self.persistent_background = None
+        self.shape_canvas = None
         self.goal_paint = None
         self.centroid = None
 
@@ -131,7 +131,6 @@ class ImageHandler:
             
         return self.capture.isOpened()
 
-
     def startCanvas(self):
         """Start user canvas.
         """        
@@ -139,6 +138,8 @@ class ImageHandler:
         # Create white canvas
         self.canvas = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
         self.persistent_background = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
+        self.shape_canvas = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
+        self.drawing = np.ones((self.img_height, self.img_width, self.n_channels), np.uint8) * 255
 
         if not self.camera_mode:
             self.canvas.fill(255)
@@ -186,19 +187,6 @@ class ImageHandler:
         if shape:
             self.pencil['shape'] = shape if self.pencil['shape'] == '.' else '.'
 
-
-      
-        # if shape and self.pencil["last_point"]:
-        #     if shape == self.pencil["shape"]:
-        #         self.drawShape(self.canvas, self.pencil, self.centroid)
-        #         self.pencil["shape"] = '.'
-        #         self.pencil["last_point"] = None
-        #     else:
-        #         self.pencil["shape"] = shape
-        #         self.pencil["last_point"] = self.centroid
-
-
-
         elif key == ord('r'):
             if self.pencil['color'] != (0, 0, 255, 255):
                 self.pencil['color'] = (0, 0, 255, 255)
@@ -241,7 +229,6 @@ class ImageHandler:
             return True  
 
         return False
-
     
     def drawCrosshair(self, image, center, size = 20, color = (0,0,255), line_width = 2):
         """Function to draw a crosshair into an image
@@ -365,7 +352,7 @@ class ImageHandler:
         return all_valid_hits.sum()/valid_indexes.sum()      
 
     def drawLine(self, canvas):
-
+        
         # Compute distance between points
         last_point = self.pencil["last_point"]
 
@@ -384,69 +371,77 @@ class ImageHandler:
 
         # Loop
         while self.capture.isOpened():
+            try:
+                # Read frame
+                _, frame = self.capture.read()
+                
 
-            # Read frame
-            _, frame = self.capture.read()
-            
+                # Mirror image for better compreension
+                if self.mirror:
+                    frame = cv2.flip(frame, 1) # code for horizontal  
 
-            # Mirror image for better compreension
-            if self.mirror:
-                frame = cv2.flip(frame, 1) # code for horizontal  
+                # Compute centroid of pencil and draw it
+                # self.centroid = self.getCrosshair(frame, display=True)
+                self.centroid = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
 
-            # Compute centroid of pencil and draw it
-            # self.centroid = self.getCrosshair(frame, display=True)
-            self.centroid = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
+                # Convert frame to BGRA
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
 
-            # Convert frame to BGRA
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
+                # When not using mouse
+                if self.centroid is not None:        
 
-            # When not using mouse
-            if self.centroid is not None:        
+                    frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if not self.mouse_handler.drawing else frame
 
-                frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if self.centroid else frame
+                    # Save shape if already drawn
+                    if self.pencil['shape'] == '.' and self.shape_canvas.any():
+                        self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
+                        self.shape_canvas.fill(0)
 
-                # Save shape if already drawn
-                if self.pencil['shape'] == '.' and self.persistent_background.any():
-                    self.canvas = self.drawOnImage(self.canvas, self.persistent_background)
-                    self.persistent_background.fill(0)
+                    if self.pencil['shape'] == '.':
+                        # Draw ...
+                        self.canvas = self.drawLine(self.canvas)
 
-                if self.pencil['shape'] == '.':
-                    # Draw ...
-                    self.canvas = self.drawLine(self.canvas)
+                        # ... and save last point
+                        self.pencil["last_point"] = self.centroid
 
-                    # ... and save last point
-                    self.pencil["last_point"] = self.centroid
+                        # Combine frame with drawing
+                        self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas 
 
-                    # Combine frame with drawing
-                    self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas 
+                    else:
+                        # Clear persistent background ...
+                        self.shape_canvas.fill(0)
 
-                else:
-                    # Clear persistent background ...
-                    self.persistent_background.fill(0)
+                        # ... draw shape on it ...
+                        self.shape_canvas = self.drawShape(self.shape_canvas, self.pencil, self.centroid)                    
 
-                    # ... draw shape on it ...
-                    self.persistent_background = self.drawShape(self.persistent_background, self.pencil, self.centroid)                    
+                        # ... temporarily add to drawing
+                        self.drawing = self.drawOnImage(self.canvas, self.shape_canvas)
 
-                    # ... temporarily add to drawing
+                if self.paint_mode:
+                    
+                    # Always drawn the lines on top
                     self.drawing = self.drawOnImage(self.canvas, self.persistent_background)
 
-            if self.paint_mode:
-                accuracy = self.paintingMode()   
-                
-                goal_display = self.goal_paint.copy()
+                    # Compute accuracy
+                    accuracy = self.paintingMode()   
+                    
+                    goal_display = self.goal_paint.copy()
 
-                cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
-                cv2.imshow(self.goal_paint_window, goal_display)            
+                    cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
+                    cv2.imshow(self.goal_paint_window, goal_display)            
 
-            # Show 
-            if frame is not None:
-                cv2.imshow(self.video_window, frame)
+                # Show 
+                if frame is not None:
+                    cv2.imshow(self.video_window, frame)
 
-            if self.drawing is not None:
-                cv2.imshow(self.canvas_window, self.drawing)
+                if self.drawing is not None:
+                    cv2.imshow(self.canvas_window, self.drawing)
 
-            if self.handleKey(cv2.waitKey(1)):
-                break 
+                if self.handleKey(cv2.waitKey(1)):
+                    break 
+
+            except Exception as e:
+                print(e)
 
         self.capture.release()
 
