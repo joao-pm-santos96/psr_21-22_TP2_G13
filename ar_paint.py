@@ -37,11 +37,12 @@ class MouseHandler:
             
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.drawing:
-                cv2.line(self.canvas, self.last_point, (x,y), self.pencil['color'], self.pencil['size'])
-                self.last_point = (x,y)                
-
+                # cv2.line(self.canvas, self.last_point, (x,y), self.pencil['color'], self.pencil['size'])
+                self.last_point = (x,y)  
+                
         elif event == cv2.EVENT_LBUTTONUP:
             self.drawing = False
+            self.last_point = None
 
 class ImageHandler:
 
@@ -180,16 +181,21 @@ class ImageHandler:
         """        
 
         # Check if drawing rectangle or circle
-        shape = chr(key) if key in [ord('s'), ord('e')] else None        
+        shape = chr(key) if key in [ord('s'), ord('e')] else None  
+
+        if shape:
+            self.pencil['shape'] = shape if self.pencil['shape'] == '.' else '.'
+
+
       
-        if shape and self.pencil["last_point"]:
-            if shape == self.pencil["shape"]:
-                self.drawShape(self.canvas, self.pencil, self.centroid)
-                self.pencil["shape"] = '.'
-                self.pencil["last_point"] = None
-            else:
-                self.pencil["shape"] = shape
-                self.pencil["last_point"] = self.centroid
+        # if shape and self.pencil["last_point"]:
+        #     if shape == self.pencil["shape"]:
+        #         self.drawShape(self.canvas, self.pencil, self.centroid)
+        #         self.pencil["shape"] = '.'
+        #         self.pencil["last_point"] = None
+        #     else:
+        #         self.pencil["shape"] = shape
+        #         self.pencil["last_point"] = self.centroid
 
 
 
@@ -272,7 +278,7 @@ class ImageHandler:
 
         background = cv2.bitwise_and(image, image, mask=mask_inv)
         foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
-        foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
+        # foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
 
         return cv2.add(background, foreground)
 
@@ -287,14 +293,14 @@ class ImageHandler:
             float: Distance.
         """    
         
-        return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5
+        return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5 if (p1 is not None and p2 is not None) else None
 
     def drawShape(self, image, pencil, centroid):
         """Draw a shape ('circle' or 'rectangle') into an image.
 
         Args:
             image (np.ndarray): Image to be drawn.
-            pencil (dict): Caracteristics of the shepes to be drawn.
+            pencil (dict): Caracteristics of the shapes to be drawn.
             centroid (tuple): Position of the shape.
         """    
         shape = pencil["shape"]
@@ -304,7 +310,9 @@ class ImageHandler:
         elif shape == 'e': 
             distance_x = abs(centroid[0]-pencil["last_point"][0])
             distance_y = abs(centroid[1]-pencil["last_point"][1])
-            cv2.ellipse(image, pencil["last_point"], (distance_x, distance_y), 0, 0, 360, color=pencil['color'], thickness=pencil['size'])  
+            cv2.ellipse(image, pencil["last_point"], (distance_x, distance_y), 0, 0, 360, color=pencil['color'], thickness=pencil['size']) 
+
+        return image 
 
     def getCrosshair(self, frame, display=True):
         """Draw the crosshait on the image.
@@ -354,7 +362,23 @@ class ImageHandler:
         all_valid_hits = np.logical_and(all_hits, valid_indexes)
 
         # Accuracy
-        return all_valid_hits.sum()/valid_indexes.sum()            
+        return all_valid_hits.sum()/valid_indexes.sum()      
+
+    def drawLine(self, canvas):
+
+        # Compute distance between points
+        last_point = self.pencil["last_point"]
+
+        norm = self.distanceOf2Points(last_point, self.centroid) if self.shake_prevention else 0
+        
+        # Drawing condition
+        condition = last_point is not None and norm < self.shake_threshold
+
+        # Draw line
+        if self.pencil["shape"] == '.' and condition:
+            cv2.line(canvas, last_point, self.centroid, self.pencil['color'], self.pencil['size'])
+
+        return canvas
 
     def run(self):
 
@@ -363,39 +387,48 @@ class ImageHandler:
 
             # Read frame
             _, frame = self.capture.read()
+            
 
             # Mirror image for better compreension
             if self.mirror:
                 frame = cv2.flip(frame, 1) # code for horizontal  
 
-            self.centroid = self.getCrosshair(frame, display=True)       
+            # Compute centroid of pencil and draw it
+            # self.centroid = self.getCrosshair(frame, display=True)
+            self.centroid = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
 
-            if self.centroid is not None:
+            # Convert frame to BGRA
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
 
-                # If not using mouse, draw the crosshair
-                if not self.mouse_handler.drawing:
-                    frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color'])
-                
-                last_point = self.pencil["last_point"] # help legibility
+            # When not using mouse
+            if self.centroid is not None:        
 
-                # Compute norm between consecutive points
-                norm = self.distanceOf2Points(last_point, self.centroid) if (self.shake_prevention and last_point is not None) else 0
+                frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if self.centroid else frame
 
-                # Draw line
-                if self.pencil["shape"] == '.':
-                    if last_point is not None and norm < self.shake_threshold and not self.mouse_handler.drawing:
-                        cv2.line(self.canvas, last_point, self.centroid, self.pencil['color'], self.pencil['size'])
+                # Save shape if already drawn
+                if self.pencil['shape'] == '.' and self.persistent_background.any():
+                    self.canvas = self.drawOnImage(self.canvas, self.persistent_background)
+                    self.persistent_background.fill(0)
 
-                    # Save last point
+                if self.pencil['shape'] == '.':
+                    # Draw ...
+                    self.canvas = self.drawLine(self.canvas)
+
+                    # ... and save last point
                     self.pencil["last_point"] = self.centroid
 
-            # Combine frame with drawing
-            self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas.copy() 
+                    # Combine frame with drawing
+                    self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas 
 
-            if self.pencil["shape"] != '.' and self.centroid:
-                self.drawShape(self.drawing, self.pencil, self.centroid)
+                else:
+                    # Clear persistent background ...
+                    self.persistent_background.fill(0)
 
-            self.drawing = self.drawOnImage(self.drawing[:,:,:3], self.persistent_background)
+                    # ... draw shape on it ...
+                    self.persistent_background = self.drawShape(self.persistent_background, self.pencil, self.centroid)                    
+
+                    # ... temporarily add to drawing
+                    self.drawing = self.drawOnImage(self.canvas, self.persistent_background)
 
             if self.paint_mode:
                 accuracy = self.paintingMode()   
@@ -406,8 +439,11 @@ class ImageHandler:
                 cv2.imshow(self.goal_paint_window, goal_display)            
 
             # Show 
-            cv2.imshow(self.video_window, frame)
-            cv2.imshow(self.canvas_window, self.drawing)
+            if frame is not None:
+                cv2.imshow(self.video_window, frame)
+
+            if self.drawing is not None:
+                cv2.imshow(self.canvas_window, self.drawing)
 
             if self.handleKey(cv2.waitKey(1)):
                 break 
@@ -451,7 +487,6 @@ def welcomeMessage():
 
     (c) PSR 21-22 G13
     """.replace("\n    ","\n")
-
 
     print(welcome_text)
 
