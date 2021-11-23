@@ -23,8 +23,7 @@ TODO
 CLASS DEFINITIONS
 """
 class MouseHandler:
-    def __init__(self, canvas, pencil):
-        self.canvas = canvas
+    def __init__(self, pencil):
         self.pencil = pencil
         self.drawing = False
         self.last_point = None
@@ -35,6 +34,8 @@ class MouseHandler:
         if event == cv2.EVENT_LBUTTONDOWN:
             self.drawing = True
             self.last_point = (x,y)
+            if self.pencil['shape']=='.':
+                self.pencil['last_point'] = (x,y)
         
         # modify last_point
         elif event == cv2.EVENT_MOUSEMOVE:
@@ -60,6 +61,24 @@ def distanceOf2Points(p1,p2):
         
         return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5 if (p1 is not None and p2 is not None) else None
 
+def drawShape(image, pencil, centroid):
+        """Draw a shape ('circle' or 'rectangle') into an image.
+
+        Args:
+            image (np.ndarray): Image to be drawn.
+            pencil (dict): Caracteristics of the shapes to be drawn.
+            centroid (tuple): Position of the shape.
+        """    
+        shape = pencil["shape"]
+
+        if shape == 's':
+            cv2.rectangle(image, pencil["last_point"], centroid, pencil['color'], pencil['size'])
+        elif shape == 'e': 
+            distance_x = abs(centroid[0]-pencil["last_point"][0])
+            distance_y = abs(centroid[1]-pencil["last_point"][1])
+            cv2.ellipse(image, pencil["last_point"], (distance_x, distance_y), 0, 0, 360, color=pencil['color'], thickness=pencil['size']) 
+
+        return image 
 
 class ImageHandler:
 
@@ -128,7 +147,7 @@ class ImageHandler:
     def setCanvasCallback(self):
         """Set canvas callback method.
         """        
-        self.mouse_handler = MouseHandler(self.canvas, self.pencil)
+        self.mouse_handler = MouseHandler(self.pencil)
         cv2.setMouseCallback(self.canvas_window, self.mouse_handler.onMouseClick)
 
     def startVideoCapture(self, index=0):
@@ -203,7 +222,13 @@ class ImageHandler:
         shape = chr(key) if key in [ord('s'), ord('e')] else None  
 
         if shape:
-            self.pencil['shape'] = shape if self.pencil['shape'] == '.' else '.'
+            if self.pencil['shape'] != '.':
+                self.pencil['shape'] = '.'
+                self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
+                self.pencil['last_point'] = None 
+                self.shape_canvas.fill(0)   
+            else:
+                self.pencil['shape'] = shape
 
         elif key == ord('r'):
             if self.pencil['color'] != (0, 0, 255, 255):
@@ -288,26 +313,7 @@ class ImageHandler:
         return cv2.add(background, foreground)
 
 
-    def drawShape(self, image, pencil, centroid):
-        """Draw a shape ('circle' or 'rectangle') into an image.
-
-        Args:
-            image (np.ndarray): Image to be drawn.
-            pencil (dict): Caracteristics of the shapes to be drawn.
-            centroid (tuple): Position of the shape.
-        """    
-        shape = pencil["shape"]
-
-        if shape == 's':
-            cv2.rectangle(image, pencil["last_point"], centroid, pencil['color'], pencil['size'])
-        elif shape == 'e': 
-            distance_x = abs(centroid[0]-pencil["last_point"][0])
-            distance_y = abs(centroid[1]-pencil["last_point"][1])
-            cv2.ellipse(image, pencil["last_point"], (distance_x, distance_y), 0, 0, 360, color=pencil['color'], thickness=pencil['size']) 
-
-        return image 
-
-    def getCrosshair(self, frame, display=True):
+    def getCrosshair(self, frame):
         """Draw the crosshait on the image.
 
         Args:
@@ -331,13 +337,12 @@ class ImageHandler:
                 
             # get index ignoring the first one
             index = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
-
             # get mask and centroid
             mask_max = (labels == index).astype('uint8') * 255
-
+            #print(centroids[index, :].astype(np.int32))
             centroid = tuple(centroids[index, :].astype(np.int32))
-
-        return (centroid, mask_max)
+        
+        return (self.mouse_handler.last_point if self.mouse_handler.drawing else centroid, mask_max)
 
     def paintingMode(self):
         """Compute the score of the paiting.
@@ -361,9 +366,9 @@ class ImageHandler:
         
         # compute distance between points
         last_point = self.pencil["last_point"]
-
+    
         norm = distanceOf2Points(last_point, self.centroid)
-        
+
         # drawing condition
         draw_cond = last_point is not None and (not self.shake_prevention or norm < self.shake_threshold)
 
@@ -387,8 +392,8 @@ class ImageHandler:
                 frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
 
             # Compute centroid of pencil and draw it
-            self.centroid, pencil_mask = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
-
+            self.centroid, pencil_mask = self.getCrosshair(frame)
+            
             # Convert frame to BGRA
             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
 
@@ -414,7 +419,7 @@ class ImageHandler:
                         self.pencil["last_point"] = self.centroid
 
                     # ... draw shape on it ...
-                    self.shape_canvas = self.drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
+                    self.shape_canvas = drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
 
             # Combine everything
             self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
@@ -423,9 +428,7 @@ class ImageHandler:
             if self.pencil['shape'] != '.' and self.shape_canvas.any():
                 self.drawing = self.drawOnImage(self.drawing, self.shape_canvas)
 
-            elif self.pencil['shape'] == '.' and self.shape_canvas.any():
-                self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
-                self.shape_canvas.fill(0)    
+            elif self.pencil['shape'] == '.' and self.shape_canvas.any(): 
                 self.pencil["last_point"] = None               
 
             if self.paint_mode:                    
