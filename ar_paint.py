@@ -387,7 +387,6 @@ class ImageHandler:
                     frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
 
                 # Compute centroid of pencil and draw it
-                # self.centroid = self.getCrosshair(frame, display=True)
                 self.centroid = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
 
                 # Convert frame to BGRA
@@ -398,11 +397,6 @@ class ImageHandler:
 
                     frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if not self.mouse_handler.drawing else frame
 
-                    # Save shape if already drawn
-                    if self.pencil['shape'] == '.' and self.shape_canvas.any():
-                        self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
-                        self.shape_canvas.fill(0)
-
                     if self.pencil['shape'] == '.':
                         # Draw ...
                         self.canvas = self.drawLine(self.canvas)
@@ -410,21 +404,25 @@ class ImageHandler:
                         # ... and save last point
                         self.pencil["last_point"] = self.centroid
 
-                        # Combine frame with drawing
-                        self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas 
-
                     else:
                         # Clear persistent background ...
                         self.shape_canvas.fill(0)
 
                         # ... draw shape on it ...
-                        self.shape_canvas = self.drawShape(self.shape_canvas, self.pencil, self.centroid)                    
+                        self.shape_canvas = self.drawShape(self.shape_canvas, self.pencil, self.centroid)                                    
 
-                        # ... temporarily add to drawing
-                        self.drawing = self.drawOnImage(self.canvas, self.shape_canvas)
+                # Combine everything
+                self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
+                
+                if self.pencil['shape'] != '.' and self.shape_canvas.any():
+                    self.drawing = self.drawOnImage(self.drawing, self.shape_canvas)
+                    # self.shape_canvas.fill(0)
 
-                if self.paint_mode:
-                    
+                elif self.pencil['shape'] == '.' and self.shape_canvas.any():
+                    self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
+                    self.shape_canvas.fill(0)                    
+
+                if self.paint_mode:                    
                     # Always drawn the lines on top
                     self.drawing = self.drawOnImage(self.canvas, self.persistent_background)
 
