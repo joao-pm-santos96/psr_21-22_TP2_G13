@@ -284,7 +284,7 @@ class ImageHandler:
         background = cv2.bitwise_and(image, image, mask=mask_inv)
         foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
         # foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
-
+        #cv2.imshow("next", drawing)
         return cv2.add(background, foreground)
 
 
@@ -377,81 +377,84 @@ class ImageHandler:
 
         # Loop
         while self.capture.isOpened():
-            try:
-                # Read frame
-                _, frame = self.capture.read()
-                
+            
+            # Read frame
+            _, frame = self.capture.read()
+            
 
-                # Mirror image for better compreension
-                if self.mirror:
-                    frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
+            # Mirror image for better compreension
+            if self.mirror:
+                frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
 
-                # Compute centroid of pencil and draw it
-                self.centroid, pencil_mask = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
+            # Compute centroid of pencil and draw it
+            self.centroid, pencil_mask = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
 
-                # Convert frame to BGRA
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
+            # Convert frame to BGRA
+            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
 
-                # When not using mouse
-                if self.centroid is not None:        
+            # When not using mouse
+            if self.centroid is not None:        
 
-                    frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if not self.mouse_handler.drawing else frame
+                frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if not self.mouse_handler.drawing else frame
 
-                    if self.pencil['shape'] == '.':
-                        # Draw ...
-                        self.canvas = self.drawLine(self.canvas)
+                #cv2.imshow("frame", frame)
 
-                        # ... and save last point
+                if self.pencil['shape'] == '.':
+                    # Draw ...
+                    self.canvas = self.drawLine(self.canvas)
+
+                    # ... and save last point
+                    self.pencil["last_point"] = self.centroid
+
+                else:
+                    # Clear persistent background ...
+                    self.shape_canvas.fill(0)
+
+                    if self.pencil["last_point"] is None:
                         self.pencil["last_point"] = self.centroid
 
-                    else:
-                        # Clear persistent background ...
-                        self.shape_canvas.fill(0)
+                    # ... draw shape on it ...
+                    self.shape_canvas = self.drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
 
-                        if self.pencil["last_point"] is None:
-                            self.pencil["last_point"] = self.centroid
+            # Combine everything
+            self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
+            
+            
+            if self.pencil['shape'] != '.' and self.shape_canvas.any():
+                self.drawing = self.drawOnImage(self.drawing, self.shape_canvas)
 
-                        # ... draw shape on it ...
-                        self.shape_canvas = self.drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
+            elif self.pencil['shape'] == '.' and self.shape_canvas.any():
+                self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
+                self.shape_canvas.fill(0)    
+                self.pencil["last_point"] = None               
 
-                # Combine everything
-                self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
+            if self.paint_mode:                    
+                # Always drawn the lines on top
+                self.drawing = self.drawOnImage(self.drawing, self.persistent_background)
+
+                # Compute accuracy
+                accuracy = self.paintingMode()   
                 
-                if self.pencil['shape'] != '.' and self.shape_canvas.any():
-                    self.drawing = self.drawOnImage(self.drawing, self.shape_canvas)
+                goal_display = self.goal_paint.copy()
 
-                elif self.pencil['shape'] == '.' and self.shape_canvas.any():
-                    self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
-                    self.shape_canvas.fill(0)    
-                    self.pencil["last_point"] = None               
+                cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
+                cv2.imshow(self.goal_paint_window, goal_display)            
 
-                if self.paint_mode:                    
-                    # Always drawn the lines on top
-                    self.drawing = self.drawOnImage(self.canvas, self.persistent_background)
+            # Show 
+            if frame is not None:
+                cv2.imshow(self.video_window, frame)
 
-                    # Compute accuracy
-                    accuracy = self.paintingMode()   
-                    
-                    goal_display = self.goal_paint.copy()
+            if self.drawing is not None:
+                cv2.imshow(self.canvas_window, self.drawing)
+                
+            if pencil_mask is not None:
+                cv2.imshow(self.mask_window, pencil_mask)
 
-                    cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
-                    cv2.imshow(self.goal_paint_window, goal_display)            
+            if self.handleKey(cv2.waitKey(1)):
+                break 
 
-                # Show 
-                if frame is not None:
-                    cv2.imshow(self.video_window, frame)
-
-                if self.drawing is not None:
-                    cv2.imshow(self.canvas_window, self.drawing)
-                    
-                if pencil_mask is not None:
-                    cv2.imshow(self.mask_window, pencil_mask)
-
-                if self.handleKey(cv2.waitKey(1)):
-                    break 
-
-            except Exception as e:
-                print(e)
+            
+            #print(e)
 
         self.capture.release()
 
