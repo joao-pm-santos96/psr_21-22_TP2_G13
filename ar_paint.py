@@ -408,8 +408,11 @@ class ImageHandler:
                         # Clear persistent background ...
                         self.shape_canvas.fill(0)
 
+                        if self.pencil["last_point"] is None:
+                            self.pencil["last_point"] = self.centroid
+
                         # ... draw shape on it ...
-                        self.shape_canvas = self.drawShape(self.shape_canvas, self.pencil, self.centroid)                                    
+                        self.shape_canvas = self.drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
 
                 # Combine everything
                 self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
