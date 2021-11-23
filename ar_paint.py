@@ -316,8 +316,11 @@ class ImageHandler:
 
         Returns:
             tuple: Centroid of the crosshair.
+            mask: Mask of region.
         """        
-
+        centroid = None
+        mask_max = np.zeros(frame.shape, np.uint8)
+        
         # get mask of drawing tool
         mask = cv2.inRange(frame, self.pencil_lower_limits, self.pencil_upper_limits)
 
@@ -332,12 +335,9 @@ class ImageHandler:
             # get mask and centroid
             mask_max = (labels == index).astype('uint8') * 255
 
-            if display:
-                cv2.imshow(self.mask_window, mask_max)
+            centroid = tuple(centroids[index, :].astype(np.int32))
 
-            return tuple(centroids[index, :].astype(np.int32))
-
-        return None
+        return (centroid, mask_max)
 
     def paintingMode(self):
         """Compute the score of the paiting.
@@ -387,7 +387,7 @@ class ImageHandler:
                     frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
 
                 # Compute centroid of pencil and draw it
-                self.centroid = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
+                self.centroid, pencil_mask = self.getCrosshair(frame, display=True) if not self.mouse_handler.drawing else self.mouse_handler.last_point
 
                 # Convert frame to BGRA
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
@@ -443,6 +443,9 @@ class ImageHandler:
 
                 if self.drawing is not None:
                     cv2.imshow(self.canvas_window, self.drawing)
+                    
+                if pencil_mask is not None:
+                    cv2.imshow(self.mask_window, pencil_mask)
 
                 if self.handleKey(cv2.waitKey(1)):
                     break 
