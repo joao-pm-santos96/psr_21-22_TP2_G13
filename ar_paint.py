@@ -31,17 +31,35 @@ class MouseHandler:
 
     def onMouseClick(self, event,x,y,flags,param):
 
+        # activate mouve drawing
         if event == cv2.EVENT_LBUTTONDOWN:
             self.drawing = True
             self.last_point = (x,y)
-            
+        
+        # modify last_point
         elif event == cv2.EVENT_MOUSEMOVE:
             if self.drawing:
                 self.last_point = (x,y)  
-                
+            
+        # unset drawing and last_point
         elif event == cv2.EVENT_LBUTTONUP:
             self.drawing = False
             self.last_point = None
+
+
+def distanceOf2Points(p1,p2):
+        """Compute the distance between two 2D points.
+
+        Args:
+            p1 (tuple): Point 1.
+            p2 (tuple): Point 2.
+
+        Returns:
+            float: Distance.
+        """    
+        
+        return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5 if (p1 is not None and p2 is not None) else None
+
 
 class ImageHandler:
 
@@ -91,7 +109,7 @@ class ImageHandler:
             f = open(file)
             limits = json.load(f)
 
-            # Get thresholds
+            # get thresholds
             self.pencil_lower_limits = np.array([limits['limits'][color]['min'] for color in 'bgr'])
             self.pencil_upper_limits = np.array([limits['limits'][color]['max'] for color in 'bgr'])
 
@@ -124,7 +142,7 @@ class ImageHandler:
         """         
         self.capture = cv2.VideoCapture(index)
 
-        # Get initial frame and size
+        # get initial frame and size
         if self.capture.isOpened(): 
             self.img_width  = int(self.capture.get(cv2.CAP_PROP_FRAME_WIDTH))
             self.img_height = int(self.capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
@@ -135,7 +153,7 @@ class ImageHandler:
         """Start user canvas.
         """        
 
-        # Create white canvas
+        # create white canvas
         self.canvas = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
         self.persistent_background = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
         self.shape_canvas = np.zeros((self.img_height, self.img_width, self.n_channels), np.uint8)
@@ -147,19 +165,19 @@ class ImageHandler:
         try:
             if self.paint_mode:
 
-                # Read the image to be painted and build a mask
+                # read the image to be painted and build a mask
                 self.goal_paint = cv2.imread(self.paint_mode, cv2.IMREAD_COLOR)
                 self.goal_paint = cv2.resize(self.goal_paint, (self.img_width, self.img_height))
 
-                # Build mask
+                # build mask
                 lower = np.array([200 for color in 'bgr']) 
                 upper = np.array([256 for color in 'bgr']) 
                 mask = cv2.inRange(self.goal_paint, lower, upper)
 
-                # Get stats
+                # get stats
                 num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
                 
-                # Paint each region randomly
+                # paint each region randomly
                 self.goal_paint.fill(0)
                 region_color = [255,0,0]
                 for idx in range(1,num_labels):
@@ -260,7 +278,7 @@ class ImageHandler:
             np.ndarray: Drawn image.
         """    
 
-        mask = drawing[:,:,3] # Use alpha channel as mask
+        mask = drawing[:,:,3] # use alpha channel as mask
         mask_inv = cv2.bitwise_not(mask)
 
         background = cv2.bitwise_and(image, image, mask=mask_inv)
@@ -269,18 +287,6 @@ class ImageHandler:
 
         return cv2.add(background, foreground)
 
-    def distanceOf2Points(self, p1,p2):
-        """Compute the distance between two 2D points.
-
-        Args:
-            p1 (tuple): Point 1.
-            p2 (tuple): Point 2.
-
-        Returns:
-            float: Distance.
-        """    
-        
-        return ((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)**0.5 if (p1 is not None and p2 is not None) else None
 
     def drawShape(self, image, pencil, centroid):
         """Draw a shape ('circle' or 'rectangle') into an image.
@@ -312,18 +318,18 @@ class ImageHandler:
             tuple: Centroid of the crosshair.
         """        
 
-        # Get mask of drawing tool
+        # get mask of drawing tool
         mask = cv2.inRange(frame, self.pencil_lower_limits, self.pencil_upper_limits)
 
-        # Get pointer
+        # get pointer
         num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
 
         if num_labels > 1:
                 
-            # Get index ignoring the first one
+            # get index ignoring the first one
             index = np.argmax(stats[1:, cv2.CC_STAT_AREA]) + 1
 
-            # Get mask and centroid
+            # get mask and centroid
             mask_max = (labels == index).astype('uint8') * 255
 
             if display:
@@ -340,29 +346,29 @@ class ImageHandler:
             float: Accuracy/score.
         """        
 
-        # Give the painting a score
+        # attribute the painting am accuracy score
         black_template = np.array([0,0,0]) 
+        # black pixels are not valid for the accuracy 
         valid_indexes = np.bitwise_not(np.all(self.goal_paint==black_template,axis=2))
-
+        # all_hits contains all correcly painted pixeis
         all_hits = np.all(self.goal_paint==self.canvas[:,:,:3],axis=2)
-    
+        # all_valid_hits contains all correcly painted pixeis that are not black
         all_valid_hits = np.logical_and(all_hits, valid_indexes)
-
-        # Accuracy
-        return all_valid_hits.sum()/valid_indexes.sum()      
+        # accuracy is calculated by all valid hits divided by the total pixels that can be painted
+        return all_valid_hits.sum()/valid_indexes.sum() if valid_indexes.sum()>0 else 1     
 
     def drawLine(self, canvas):
         
-        # Compute distance between points
+        # compute distance between points
         last_point = self.pencil["last_point"]
 
-        norm = self.distanceOf2Points(last_point, self.centroid) if self.shake_prevention else 0
+        norm = distanceOf2Points(last_point, self.centroid)
         
-        # Drawing condition
-        condition = last_point is not None and norm < self.shake_threshold
+        # drawing condition
+        draw_cond = last_point is not None and (not self.shake_prevention or norm < self.shake_threshold)
 
-        # Draw line
-        if self.pencil["shape"] == '.' and condition:
+        # draw line
+        if self.pencil["shape"] == '.' and draw_cond:
             cv2.line(canvas, last_point, self.centroid, self.pencil['color'], self.pencil['size'])
 
         return canvas
@@ -378,7 +384,7 @@ class ImageHandler:
 
                 # Mirror image for better compreension
                 if self.mirror:
-                    frame = cv2.flip(frame, 1) # code for horizontal  
+                    frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
 
                 # Compute centroid of pencil and draw it
                 # self.centroid = self.getCrosshair(frame, display=True)
@@ -453,6 +459,7 @@ def welcomeMessage():
     """Print welcome message.
     """    
 
+    # multi-line legible text format
     welcome_text =f"""Hello! Welcome to our AR Painting app!
     In this amazing app, you can draw either with your mouse or, even better, with any object segmented with color_segmenter.py!
 
@@ -500,10 +507,12 @@ def main():
     # Print welcome message
     welcomeMessage()
 
-    image_handler = ImageHandler(shake_prevention=args.use_shake_prevention, 
-    mirror=args.mirror,
-    camera_mode=args.cameramode,
-    paint_mode=args.paintmode)
+    image_handler = ImageHandler(
+        shake_prevention=args.use_shake_prevention, 
+        mirror=args.mirror,
+        camera_mode=args.cameramode,
+        paint_mode=args.paintmode
+    )
 
     image_handler.getLimitsFromFile(args.json)     
 
