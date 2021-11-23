@@ -23,10 +23,11 @@ TODO
 CLASS DEFINITIONS
 """
 class MouseHandler:
-    def __init__(self, pencil):
+    def __init__(self, pencil, flushShape):
         self.pencil = pencil
         self.drawing = False
         self.last_point = None
+        self.flushShape = flushShape
 
     def onMouseClick(self, event,x,y,flags,param):
 
@@ -44,9 +45,10 @@ class MouseHandler:
             
         # unset drawing and last_point
         elif event == cv2.EVENT_LBUTTONUP:
+            
+            self.flushShape()
             self.drawing = False
             self.last_point = None
-
 
 def distanceOf2Points(p1,p2):
         """Compute the distance between two 2D points.
@@ -117,6 +119,12 @@ class ImageHandler:
 
         self.key_counter = {None: None}
 
+    def flushCurrentShape(self):
+        self.pencil['shape'] = '.'
+        self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
+        self.pencil['last_point'] = None 
+        self.shape_canvas.fill(0)   
+
     def getLimitsFromFile(self, file):
         """Get the threshold limits from file
 
@@ -147,7 +155,7 @@ class ImageHandler:
     def setCanvasCallback(self):
         """Set canvas callback method.
         """        
-        self.mouse_handler = MouseHandler(self.pencil)
+        self.mouse_handler = MouseHandler(self.pencil, self.flushCurrentShape)
         cv2.setMouseCallback(self.canvas_window, self.mouse_handler.onMouseClick)
 
     def startVideoCapture(self, index=0):
@@ -218,15 +226,12 @@ class ImageHandler:
             bool: True if quit, False otherwise.
         """        
 
-        # Check if drawing rectangle or circle
+        # check if drawing rectangle or circle
         shape = chr(key) if key in [ord('s'), ord('e')] else None  
 
         if shape:
             if self.pencil['shape'] != '.':
-                self.pencil['shape'] = '.'
-                self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
-                self.pencil['last_point'] = None 
-                self.shape_canvas.fill(0)   
+                self.flushCurrentShape()
             else:
                 self.pencil['shape'] = shape
 
@@ -308,8 +313,7 @@ class ImageHandler:
 
         background = cv2.bitwise_and(image, image, mask=mask_inv)
         foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
-        # foreground = cv2.cvtColor(foreground, cv2.COLOR_BGRA2BGR)
-        #cv2.imshow("next", drawing)
+        
         return cv2.add(background, foreground)
 
 
