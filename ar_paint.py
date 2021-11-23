@@ -419,11 +419,11 @@ class ImageHandler:
                 
                 if self.pencil['shape'] != '.' and self.shape_canvas.any():
                     self.drawing = self.drawOnImage(self.drawing, self.shape_canvas)
-                    # self.shape_canvas.fill(0)
 
                 elif self.pencil['shape'] == '.' and self.shape_canvas.any():
                     self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
-                    self.shape_canvas.fill(0)                    
+                    self.shape_canvas.fill(0)    
+                    self.pencil["last_point"] = None               
 
                 if self.paint_mode:                    
                     # Always drawn the lines on top
