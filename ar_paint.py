@@ -18,7 +18,7 @@ from time import time
 from colorama import Fore, Back, Style
 from datetime import datetime
 
-FPS = 15
+
 
 """
 TODO
@@ -87,6 +87,26 @@ def drawShape(image, pencil, centroid):
 
         return image 
 
+def drawOnImage(image, drawing):
+        """Helper function to draw on top of another image.
+
+        Args:
+            image (np.ndarray): Background image.
+            drawing (np.ndarray): Foreground image.
+
+        Returns:
+            np.ndarray: Merged images.
+        """    
+
+        mask = drawing[:,:,3] # use alpha channel as mask
+        mask_inv = cv2.bitwise_not(mask)
+
+        background = cv2.bitwise_and(image, image, mask=mask_inv)
+        foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
+        
+        return cv2.add(background, foreground)
+
+
 class ImageHandler:
 
     def __init__(self, shake_prevention = False, mirror = False, camera_mode = False, paint_mode = False): # to avoid using global variables
@@ -126,7 +146,7 @@ class ImageHandler:
 
     def flushCurrentShape(self):
         self.pencil['shape'] = '.'
-        self.canvas = self.drawOnImage(self.canvas, self.shape_canvas)
+        self.canvas = drawOnImage(self.canvas, self.shape_canvas)
         self.pencil['last_point'] = None 
         self.shape_canvas.fill(0)   
 
@@ -306,24 +326,6 @@ class ImageHandler:
 
         return image
 
-    def drawOnImage(self, image, drawing):
-        """Helper function to draw on top of another image.
-
-        Args:
-            image (np.ndarray): Background image.
-            drawing (np.ndarray): Foreground image.
-
-        Returns:
-            np.ndarray: Drawn image.
-        """    
-
-        mask = drawing[:,:,3] # use alpha channel as mask
-        mask_inv = cv2.bitwise_not(mask)
-
-        background = cv2.bitwise_and(image, image, mask=mask_inv)
-        foreground = cv2.bitwise_and(drawing, drawing, mask=mask)
-        
-        return cv2.add(background, foreground)
 
 
     def getCrosshair(self, frame):
@@ -357,7 +359,7 @@ class ImageHandler:
         
         return (self.mouse_handler.last_point if self.mouse_handler.drawing else centroid, mask_max)
 
-    def paintingMode(self):
+    def getPaintingAccuracy(self):
         """Compute the score of the paiting.
 
         Returns:
@@ -391,7 +393,7 @@ class ImageHandler:
 
         return canvas
 
-    def run(self):
+    def run(self, fps=15):
 
         # introduce fps feature
         # only update windows states FPS times per seconds
@@ -401,8 +403,10 @@ class ImageHandler:
         # Loop
         while self.capture.isOpened():
             
-            if (time()-time_counter)>1/FPS:
-                time_counter = 2*time()-time_counter-1/FPS
+            # update every 1/FPS seconds 
+            if (time()-time_counter)>1/fps:
+                # time_count always increases its value by multiples of 1/fps 
+                time_counter = 2*time() - time_counter - 1/fps
 
                 # Read frame
                 _, frame = self.capture.read()
@@ -443,25 +447,25 @@ class ImageHandler:
                         self.shape_canvas = drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
 
                 # Combine everything
-                self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
+                self.drawing = drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
                 
                 
                 if self.pencil['shape'] != '.' and self.shape_canvas.any():
-                    self.drawing = self.drawOnImage(self.drawing, self.shape_canvas)
+                    self.drawing = drawOnImage(self.drawing, self.shape_canvas)
 
                 elif self.pencil['shape'] == '.' and self.shape_canvas.any(): 
                     self.pencil["last_point"] = None               
 
                 if self.paint_mode:                    
                     # Always drawn the lines on top
-                    self.drawing = self.drawOnImage(self.drawing, self.persistent_background)
+                    self.drawing = drawOnImage(self.drawing, self.persistent_background)
 
                     # Compute accuracy
-                    accuracy = self.paintingMode()   
+                    accuracy = self.getPaintingAccuracy()   
                     
                     goal_display = self.goal_paint.copy()
 
-                    cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
+                    cv2.putText(goal_display,f"{accuracy*100:.2f}%",(15, goal_display.shape[0]-30), cv2.FONT_HERSHEY_SIMPLEX, 1.5,(0,255,255),3,cv2.LINE_AA)
                     cv2.imshow(self.goal_paint_window, goal_display)            
 
                 # Show 
