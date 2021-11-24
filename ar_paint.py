@@ -11,9 +11,14 @@ import json
 import cv2
 import numpy as np
 import random
+import sys
+import math
+from time import time
 
 from colorama import Fore, Back, Style
 from datetime import datetime
+
+FPS = 15
 
 """
 TODO
@@ -141,7 +146,7 @@ class ImageHandler:
             self.pencil_upper_limits = np.array([limits['limits'][color]['max'] for color in 'bgr'])
 
         except:
-            print(f"Erro a ler o ficheiro {file}!")
+            print(f"Error reading the {file}: {sys.exc_info()[1]}")
             exit(1)
 
     def startWindows(self):
@@ -204,16 +209,20 @@ class ImageHandler:
                 # get stats
                 num_labels, labels, stats, centroids = cv2.connectedComponentsWithStats(mask, 4, cv2.CV_32S)
                 
-                # paint each region randomly
                 self.goal_paint.fill(0)
-                region_color = [255,0,0]
+
+                # paint each region randomly (fair distribution)
+                fair_random_modifier = math.ceil(num_labels/3)
+                region_color = [(255,0,0),(0,255,0),(0,0,255)]*fair_random_modifier
+                random.shuffle(region_color)
                 for idx in range(1,num_labels):
-                    random.shuffle(region_color)
-                    self.goal_paint[labels==idx] = region_color
+                    
+                    self.goal_paint[labels==idx] = region_color[idx-1]
 
                 self.persistent_background[labels==0,3] = 255    
         except:
-            print(f"Erro a ler o ficheiro {self.paint_mode}!")
+            
+            print(f"Error reading the {self.paint_mode}: {sys.exc_info()[1]}")
             exit(1)
 
     def handleKey(self, key):       
@@ -384,79 +393,88 @@ class ImageHandler:
 
     def run(self):
 
+        # introduce fps feature
+        # only update windows states FPS times per seconds
+        # this prevents the cv2 windows from getting block for long processing times
+        time_counter = time()
+
         # Loop
         while self.capture.isOpened():
             
-            # Read frame
-            _, frame = self.capture.read()
-            
+            if (time()-time_counter)>1/FPS:
+                time_counter = 2*time()-time_counter-1/FPS
 
-            # Mirror image for better compreension
-            if self.mirror:
-                frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
+                # Read frame
+                _, frame = self.capture.read()
+                
 
-            # Compute centroid of pencil and draw it
-            self.centroid, pencil_mask = self.getCrosshair(frame)
-            
-            # Convert frame to BGRA
-            frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
+                # Mirror image for better compreension
+                if self.mirror:
+                    frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
 
-            # When not using mouse
-            if self.centroid is not None:        
+                # Compute centroid of pencil and draw it
+                self.centroid, pencil_mask = self.getCrosshair(frame)
+                
+                # Convert frame to BGRA
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
 
-                frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if not self.mouse_handler.drawing else frame
+                # When not using mouse
+                if self.centroid is not None:        
 
-                #cv2.imshow("frame", frame)
+                    frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if not self.mouse_handler.drawing else frame
 
-                if self.pencil['shape'] == '.':
-                    # Draw ...
-                    self.canvas = self.drawLine(self.canvas)
+                    #cv2.imshow("frame", frame)
 
-                    # ... and save last point
-                    self.pencil["last_point"] = self.centroid
+                    if self.pencil['shape'] == '.':
+                        # Draw ...
+                        self.canvas = self.drawLine(self.canvas)
 
-                else:
-                    # Clear persistent background ...
-                    self.shape_canvas.fill(0)
-
-                    if self.pencil["last_point"] is None:
+                        # ... and save last point
                         self.pencil["last_point"] = self.centroid
 
-                    # ... draw shape on it ...
-                    self.shape_canvas = drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
+                    else:
+                        # Clear persistent background ...
+                        self.shape_canvas.fill(0)
 
-            # Combine everything
-            self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
-            
-            
-            if self.pencil['shape'] != '.' and self.shape_canvas.any():
-                self.drawing = self.drawOnImage(self.drawing, self.shape_canvas)
+                        if self.pencil["last_point"] is None:
+                            self.pencil["last_point"] = self.centroid
 
-            elif self.pencil['shape'] == '.' and self.shape_canvas.any(): 
-                self.pencil["last_point"] = None               
+                        # ... draw shape on it ...
+                        self.shape_canvas = drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
 
-            if self.paint_mode:                    
-                # Always drawn the lines on top
-                self.drawing = self.drawOnImage(self.drawing, self.persistent_background)
-
-                # Compute accuracy
-                accuracy = self.paintingMode()   
+                # Combine everything
+                self.drawing = self.drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
                 
-                goal_display = self.goal_paint.copy()
-
-                cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
-                cv2.imshow(self.goal_paint_window, goal_display)            
-
-            # Show 
-            if frame is not None:
-                cv2.imshow(self.video_window, frame)
-
-            if self.drawing is not None:
-                cv2.imshow(self.canvas_window, self.drawing)
                 
-            if pencil_mask is not None:
-                cv2.imshow(self.mask_window, pencil_mask)
+                if self.pencil['shape'] != '.' and self.shape_canvas.any():
+                    self.drawing = self.drawOnImage(self.drawing, self.shape_canvas)
 
+                elif self.pencil['shape'] == '.' and self.shape_canvas.any(): 
+                    self.pencil["last_point"] = None               
+
+                if self.paint_mode:                    
+                    # Always drawn the lines on top
+                    self.drawing = self.drawOnImage(self.drawing, self.persistent_background)
+
+                    # Compute accuracy
+                    accuracy = self.paintingMode()   
+                    
+                    goal_display = self.goal_paint.copy()
+
+                    cv2.putText(goal_display,f"{accuracy*100:.2f}%",(10, goal_display.shape[0]-50), cv2.FONT_HERSHEY_SIMPLEX, 1,(0,255,255),2,cv2.LINE_AA)
+                    cv2.imshow(self.goal_paint_window, goal_display)            
+
+                # Show 
+                if frame is not None:
+                    cv2.imshow(self.video_window, frame)
+
+                if self.drawing is not None:
+                    cv2.imshow(self.canvas_window, self.drawing)
+                    
+                if pencil_mask is not None:
+                    cv2.imshow(self.mask_window, pencil_mask)
+            #else:
+                #print("ignoring frame")
             if self.handleKey(cv2.waitKey(1)):
                 break 
 
