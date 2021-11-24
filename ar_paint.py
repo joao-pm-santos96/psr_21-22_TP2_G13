@@ -393,7 +393,7 @@ class ImageHandler:
 
         return canvas
 
-    def run(self, fps=15):
+    def run(self, fps=20):
 
         # introduce fps feature
         # only update windows states FPS times per seconds
@@ -403,10 +403,12 @@ class ImageHandler:
         # Loop
         while self.capture.isOpened():
             
+            current_time = time() 
             # update every 1/FPS seconds 
-            if (time()-time_counter)>1/fps:
+            if (current_time-time_counter)>1/fps:
                 # time_count always increases its value by multiples of 1/fps 
-                time_counter = 2*time() - time_counter - 1/fps
+                while current_time-time_counter>1/fps:
+                    time_counter = 2*time() - time_counter - 1/fps
 
                 # Read frame
                 _, frame = self.capture.read()
