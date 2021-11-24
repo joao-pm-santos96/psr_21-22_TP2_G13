@@ -137,7 +137,7 @@ class ImageHandler:
 
         self.mouse_handler = None
 
-        self.pencil = {'size': 10, 'color': (0, 0, 255, 255), "last_point": None, "shape": '.'}
+        self.pencil = {'size': 10, 'color': (255, 0, 0, 255), "last_point": None, "shape": '.'}
         self.drawing = None
 
         self.shake_threshold = 150        
@@ -166,7 +166,7 @@ class ImageHandler:
             self.pencil_upper_limits = np.array([limits['limits'][color]['max'] for color in 'bgr'])
 
         except:
-            print(f"Error reading the {file}: {sys.exc_info()[1]}")
+            print(f"Error reading the file '{file}': {sys.exc_info()[1]}")
             exit(1)
 
     def startWindows(self):
@@ -217,12 +217,12 @@ class ImageHandler:
         try:
             if self.paint_mode:
 
-                # read the image to be painted and build a mask
+                # read the image to be painted resize it to camera
                 self.goal_paint = cv2.imread(self.paint_mode, cv2.IMREAD_COLOR)
                 self.goal_paint = cv2.resize(self.goal_paint, (self.img_width, self.img_height))
 
-                # build mask
-                lower = np.array([200 for color in 'bgr']) 
+                # compute mask for almost white areas
+                lower = np.array([220 for color in 'bgr']) 
                 upper = np.array([256 for color in 'bgr']) 
                 mask = cv2.inRange(self.goal_paint, lower, upper)
 
@@ -235,14 +235,14 @@ class ImageHandler:
                 fair_random_modifier = math.ceil(num_labels/3)
                 region_color = [(255,0,0),(0,255,0),(0,0,255)]*fair_random_modifier
                 random.shuffle(region_color)
-                for idx in range(1,num_labels):
-                    
+                for idx in range(1,num_labels): 
                     self.goal_paint[labels==idx] = region_color[idx-1]
 
-                self.persistent_background[labels==0,3] = 255    
+                # force pixels to black
+                self.persistent_background[labels==0] = (0,0,0,255)    
         except:
             
-            print(f"Error reading the {self.paint_mode}: {sys.exc_info()[1]}")
+            print(f"Error reading the file '{self.paint_mode}': {sys.exc_info()[1]}")
             exit(1)
 
     def handleKey(self, key):       
@@ -382,6 +382,7 @@ class ImageHandler:
         # compute distance between points
         last_point = self.pencil["last_point"]
     
+        # calculate distances
         norm = distanceOf2Points(last_point, self.centroid)
 
         # drawing condition
@@ -393,11 +394,11 @@ class ImageHandler:
 
         return canvas
 
-    def run(self, fps=20):
+    def run(self, fps=25):
 
         # introduce fps feature
-        # only update windows states FPS times per seconds
-        # this prevents the cv2 windows from getting block for long processing times
+        # only update window states FPS times per second
+        # this prevents the cv2 windows from getting block on continuous key-press events
         time_counter = time()
 
         # Loop
@@ -408,7 +409,7 @@ class ImageHandler:
             if (current_time-time_counter)>1/fps:
                 # time_count always increases its value by multiples of 1/fps 
                 while current_time-time_counter>1/fps:
-                    time_counter = 2*time() - time_counter - 1/fps
+                    time_counter = 2*current_time - time_counter - 1/fps
 
                 # Read frame
                 _, frame = self.capture.read()
@@ -439,20 +440,20 @@ class ImageHandler:
                         self.pencil["last_point"] = self.centroid
 
                     else:
-                        # Clear persistent background ...
+                        # clear shape canvas
                         self.shape_canvas.fill(0)
 
                         if self.pencil["last_point"] is None:
                             self.pencil["last_point"] = self.centroid
 
-                        # ... draw shape on it ...
+                        # redraw shape with the new position, color and thickness on shape_canvas
                         self.shape_canvas = drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
 
-                # Combine everything
+                # combine everything
                 self.drawing = drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
                 
-                
                 if self.pencil['shape'] != '.' and self.shape_canvas.any():
+                    # add temporary shape drawing
                     self.drawing = drawOnImage(self.drawing, self.shape_canvas)
 
                 elif self.pencil['shape'] == '.' and self.shape_canvas.any(): 
@@ -465,6 +466,7 @@ class ImageHandler:
                     # Compute accuracy
                     accuracy = self.getPaintingAccuracy()   
                     
+                    # copy goal paint to allow dynamic accuracy display
                     goal_display = self.goal_paint.copy()
 
                     cv2.putText(goal_display,f"{accuracy*100:.2f}%",(15, goal_display.shape[0]-30), cv2.FONT_HERSHEY_SIMPLEX, 1.5,(0,255,255),3,cv2.LINE_AA)
@@ -479,13 +481,9 @@ class ImageHandler:
                     
                 if pencil_mask is not None:
                     cv2.imshow(self.mask_window, pencil_mask)
-            #else:
-                #print("ignoring frame")
+            
             if self.handleKey(cv2.waitKey(1)):
                 break 
-
-            
-            #print(e)
 
         self.capture.release()
 
