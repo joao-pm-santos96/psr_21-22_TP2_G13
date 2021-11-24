@@ -411,32 +411,29 @@ class ImageHandler:
                 while current_time-time_counter>1/fps:
                     time_counter = 2*current_time - time_counter - 1/fps
 
-                # Read frame
+                # read frame
                 _, frame = self.capture.read()
                 
 
-                # Mirror image for better compreension
+                # mirror image for better compreension
                 if self.mirror:
                     frame = cv2.flip(frame, 1) # 1 is code for horizontal flip  
 
-                # Compute centroid of pencil and draw it
+                # compute centroid of pencil and draw it
                 self.centroid, pencil_mask = self.getCrosshair(frame)
                 
-                # Convert frame to BGRA
+                # convert frame to BGRA
                 frame = cv2.cvtColor(frame, cv2.COLOR_BGR2BGRA)
 
-                # When not using mouse
                 if self.centroid is not None:        
 
                     frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if not self.mouse_handler.drawing else frame
 
-                    #cv2.imshow("frame", frame)
-
                     if self.pencil['shape'] == '.':
-                        # Draw ...
+                        # draw line
                         self.canvas = self.drawLine(self.canvas)
 
-                        # ... and save last point
+                        # save last point
                         self.pencil["last_point"] = self.centroid
 
                     else:
@@ -472,14 +469,16 @@ class ImageHandler:
                     cv2.putText(goal_display,f"{accuracy*100:.2f}%",(15, goal_display.shape[0]-30), cv2.FONT_HERSHEY_SIMPLEX, 1.5,(0,255,255),3,cv2.LINE_AA)
                     cv2.imshow(self.goal_paint_window, goal_display)            
 
-                # Show 
                 if frame is not None:
+                    # show capture 
                     cv2.imshow(self.video_window, frame)
 
                 if self.drawing is not None:
+                    # show drawing
                     cv2.imshow(self.canvas_window, self.drawing)
                     
                 if pencil_mask is not None:
+                    # show mask
                     cv2.imshow(self.mask_window, pencil_mask)
             
             if self.handleKey(cv2.waitKey(1)):
@@ -530,7 +529,7 @@ def welcomeMessage():
 
 def main():
 
-    # Argparse stuff
+    # input arguments handling using argparse library
     parser = argparse.ArgumentParser(description='Augmented reality paint')
     parser.add_argument('-j', '--json', type=str, required=True, help='Full path to json file.')
     parser.add_argument('-usp', '--use_shake_prevention', default=False, action='store_true', help='Use shake prevention functionality. Defaults fo False.')
@@ -538,9 +537,10 @@ def main():
     parser.add_argument('-paint', '--paintmode', type=str, help='Use paintmode on a given image')
     parser.add_argument('-m', '--mirror', default=False, action='store_true', help='Mirror camera input horizontally')
 
+    # args is a dictionary
     args = parser.parse_args()
 
-    # Print welcome message
+    # print welcome message
     welcomeMessage()
 
     image_handler = ImageHandler(
