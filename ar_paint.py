@@ -401,7 +401,7 @@ class ImageHandler:
         # this prevents the cv2 windows from getting block on continuous key-press events
         time_counter = time()
 
-        # Loop
+        # loop
         while self.capture.isOpened():
             
             current_time = time() 
