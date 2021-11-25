@@ -427,7 +427,7 @@ class ImageHandler:
 
                 if self.centroid is not None:        
 
-                    frame = self.drawCrosshair(frame, self.centroid, color=self.pencil['color']) if not self.mouse_handler.drawing else frame
+                    frame = self.drawCrosshair(frame, self.centroid, color=(0,0,255)) if not self.mouse_handler.drawing else frame
 
                     if self.pencil['shape'] == '.':
                         # draw line
@@ -447,7 +447,11 @@ class ImageHandler:
                         self.shape_canvas = drawShape(self.shape_canvas, self.pencil, self.centroid)                                  
 
                 # combine everything
-                self.drawing = drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas
+                self.drawing = drawOnImage(frame, self.canvas) if self.camera_mode else self.canvas.copy()
+                
+                # crosshair need to be added manually in case of camera_mode is off
+                if self.centroid is not None and not self.camera_mode and not self.mouse_handler.drawing:
+                    self.drawing = self.drawCrosshair(self.drawing, self.centroid, color=(0,0,255))
                 
                 if self.pencil['shape'] != '.' and self.shape_canvas.any():
                     # add temporary shape drawing
@@ -457,7 +461,7 @@ class ImageHandler:
                     self.pencil["last_point"] = None               
 
                 if self.paint_mode:                    
-                    # Always drawn the lines on top
+                    # Always draw the black lines on top
                     self.drawing = drawOnImage(self.drawing, self.persistent_background)
 
                     # Compute accuracy
